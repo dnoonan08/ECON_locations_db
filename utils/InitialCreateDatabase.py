@@ -37,4 +37,4 @@ def createLocationsDB(fname = 'example.db'):
     cursor.close()
     conn.close()
 
-createLocationsDB('ECON_Locations_DB.db')
+createLocationsDB('../database_files/ECON_Locations_DB.db')

@@ -13,19 +13,19 @@ class LocationsDatabase:
         self.conn.commit()
         self.cursor.close()
         self.conn.close()
-        
+
     def checkin_chip(self,chip_id,chip_type,tray_number,chip_position,location,pkg_date,pkg_batch,status="",timestamp=None):
         """Add a new chip to the database"""
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        data = (chip_id,'CHECKIN',tray_number,chip_position,tray_number,chip_position,location,status,str(datetime.now()))
+        data = (chip_id,'CHECKIN',tray_number,chip_position,tray_number,chip_position,location,status,str(timestamp))
         self.cursor.execute(sql_cmd_insert,data)
 
         sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time)
                             VALUES(?,?,?,?,?,?,?) '''
-        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",timestamp)
+        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp))
         self.cursor.execute(sql_cmd_insert,data)
 
     def chipInDatabase(self,id_value,tableName='locations'):
@@ -47,13 +47,22 @@ class LocationsDatabase:
     def getCurrentLocations(self):
         """From pandas dataframe, return table which has the last entry from each chip"""
         df_ = self.loadLocationsDatabase()
+        df_.time = pd.to_datetime(df_.time)
+        df_.sort_values('time',inplace=True)
         keep = (df_.groupby('chip_id')['time'].idxmax())
         return df_.loc[keep]
 
-    def getChipTypeAndPkg(self,chip_id):
-        """Returns the chip type, package date, package batch, and """
-        self.cursor.execute("SELECT chip_type, pkg_date, pkg_batch FROM status WHERE chip_id = ?", (chip_id,))
-        return self.cursor.fetchone()
+    def getCurrentStatus(self):
+        """From pandas dataframe, return table which has the last entry from each chip"""
+        df_ = self.loadStatusDatabase()
+        df_.time = pd.to_datetime(df_.time)
+        df_.sort_values('time',inplace=True)
+        keep = (df_.groupby('chip_id')['time'].idxmax())
+        return df_.loc[keep]
+
+    def getChip(self,chip_id):
+        """Returns the data from a specific chip"""
+        return pd.read_sql_query(f"SELECT * FROM locations WHERE chip_id = {chip_id}",self.conn)
 
     def checkPositionAlreadyFilled(self,new_tray,new_position):
         df_last = self.getCurrentLocations()
@@ -64,22 +73,45 @@ class LocationsDatabase:
         for t,p in trays_position_list:
             if checkPositionAlreadyFilled(self,t,p):
                 hasConflicts = True
-                print(f'Chip already in location {t}/{p:02d}')    
+                print(f'Chip already in location {t}/{p:02d}')
             if p<1 or p>90:
                 hasConflicts = True
                 print(f'New chip position {t}/{p:02d} is out of bounds for tray size')
         return hasConflicts
 
-    def move_chip(self,chip_id,start_tray, start_position, new_tray, new_position,comments="",timestamp=None):
+    def sortChip(self,chip_id,start_tray, start_position, new_tray, new_position,comments="",timestamp=None):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        data = (chip_id,'SORT',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
+        data = (chip_id,'SORTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
+
+    def setTestedStatus(self,chip_id,tray,position,comments="",timestamp=None):
+        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        data = (chip_id,'TESTED',int(tray),int(position), int(tray),int(position),"WH14",comments,timestamp)
+        self.cursor.execute(sql_cmd_insert,data)
+
+    def setChipGrade(self,chip_id,grade,comments="",timestamp=None):
+        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time)
+                            VALUES(?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
+        chip_info = list(self.cursor.fetchone())
+        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp))
+        self.cursor.execute(sql_cmd_insert,data)
+
 
     def getChipsInTray(self,tray_number):
         df_ = self.getCurrentLocations()
-        return df_[df_.current_tray==tray_number][['chip_id','current_tray','current_position']]
+        return df_[df_.current_tray==tray_number]
