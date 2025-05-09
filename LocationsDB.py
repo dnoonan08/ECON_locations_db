@@ -111,6 +111,10 @@ class LocationsDatabase:
         data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp))
         self.cursor.execute(sql_cmd_insert,data)
 
+    def getStatusForTray(self,tray_number):
+        chip_list = self.getChipsInTray(tray_number).chip_id.values
+        df_status = self.getCurrentStatus()
+        return df_status[df_status.chip_id.isin(chip_list)]
 
     def getChipsInTray(self,tray_number):
         df_ = self.getCurrentLocations()
