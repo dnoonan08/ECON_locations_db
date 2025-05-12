@@ -16,8 +16,9 @@ pd.set_option('display.max_rows', 100)
 @click.option("--location",is_flag=True, help="Check the current location of a given chip or tray")
 @click.option("--history",is_flag=True, help="Get the full history of a chip")
 @click.option("--status",is_flag=True, help="Get the status table for a given chip or tray")
+@click.option("--sorting_tray_summary",is_flag=True, help="Get a summary for all sorting trays")
 @click.option("--locations_db", default="/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db", help="Log file to log chip movements.")
-def main(tray, chip, get_next_tray, location, history, status, locations_db):
+def main(tray, chip, get_next_tray, location, history, status, sorting_tray_summary, locations_db):
 
     loc_db = LocationsDatabase(locations_db)
 
@@ -76,9 +77,25 @@ def main(tray, chip, get_next_tray, location, history, status, locations_db):
 
     if tray!=0:
         d = loc_db.getChipsInTray(tray)
+        d.sort_values('current_position',inplace=True)
         print(d.set_index('chip_id'))
         print(f'Total chips: {len(d)}')
         return
+
+    if sorting_tray_summary:
+        d = loc_db.getCurrentLocations()
+        tray_list = d.current_tray.unique()
+        tray_list.sort()
+
+        print('ECON-T')
+        for t in tray_list[((tray_list>8000) & (tray_list<10000))]:
+            d = loc_db.getStatusForTray(t)
+            print(f"Tray number {t:05d}: {len(d):02d} chips with grade {'/'.join(d.grade.unique())}")
+        print('-'*40)
+        print('ECON-D')
+        for t in tray_list[((tray_list>18000) & (tray_list<20000))]:
+            d = loc_db.getStatusForTray(t)
+            print(f"Tray number {t:05d}: {len(d):02d} chips with grade {'/'.join((d.grade.str[:] +' '+ d.comments.str[:]).unique())}")
 
 if __name__=="__main__":
     main()
