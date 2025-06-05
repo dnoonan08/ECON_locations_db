@@ -28,9 +28,9 @@ def main(tray, chip, get_next_tray, location, history, status, sorting_tray_summ
         full_barcode_list = np.unique(full_barcode_list)
 
         ECONT_initial = full_barcode_list[full_barcode_list<7000].max() + 1
-        ECONT_sorting = full_barcode_list[(full_barcode_list<10000) & (full_barcode_list>=7000)].max() + 1
+        ECONT_sorting = full_barcode_list[(full_barcode_list<9900) & (full_barcode_list>=7000)].max() + 1
         ECOND_initial = full_barcode_list[(full_barcode_list>=10000) & (full_barcode_list<17000)].max() + 1
-        ECOND_sorting = full_barcode_list[(full_barcode_list>=17000)].max() + 1
+        ECOND_sorting = full_barcode_list[(full_barcode_list>=17000) & (full_barcode_list<19900)].max() + 1
 
         print("Next tray numbers to use:")
 
