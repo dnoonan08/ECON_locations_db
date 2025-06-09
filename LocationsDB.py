@@ -119,3 +119,13 @@ class LocationsDatabase:
     def getChipsInTray(self,tray_number):
         df_ = self.getCurrentLocations()
         return df_[df_.current_tray==tray_number]
+
+    def rejectChip(self, chip_id, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):        
+        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
+        self.cursor.execute(sql_cmd_insert,data)
