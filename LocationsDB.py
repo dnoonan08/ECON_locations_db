@@ -129,3 +129,22 @@ class LocationsDatabase:
 
         data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
+
+    def shipTrays(self, trays, destination, comments="", timestamp=None):
+        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        for tray_number in trays:
+            chipsInTray = self.getChipsInTray(tray_number).to_numpy()
+            chipsInTray[:,1] = "SHIPPED" #update entry_type
+            chipsInTray[:,2] = chipsInTray[:,4] #update intial_tray
+            chipsInTray[:,3] = chipsInTray[:,5] #update initial_position
+            chipsInTray[:,6] = destination
+            chipsInTray[:,7] = comments
+            chipsInTray[:,8] = timestamp
+            
+            for chip in chipsInTray:
+                self.cursor.execute(sql_cmd_insert, chip)
