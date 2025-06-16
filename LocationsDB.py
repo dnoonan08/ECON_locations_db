@@ -55,9 +55,9 @@ class LocationsDatabase:
         data = (chip_id,'CHECKIN',tray_number,chip_position,tray_number,chip_position,location,status,str(timestamp))
         self.cursor.execute(sql_cmd_insert,data)
 
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time)
-                            VALUES(?,?,?,?,?,?,?) '''
-        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp))
+        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp),"","")
         self.cursor.execute(sql_cmd_insert,data)
 
     def chipInDatabase(self,id_value,tableName='locations'):
@@ -132,15 +132,15 @@ class LocationsDatabase:
         self.cursor.execute(sql_cmd_insert,data)
 
     def setChipGrade(self,chip_id,grade,comments="",timestamp=None):
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time)
-                            VALUES(?,?,?,?,?,?,?) '''
+        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
         chip_info = list(self.cursor.fetchone())
-        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp))
+        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),"","")
         self.cursor.execute(sql_cmd_insert,data)
 
     def setChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
