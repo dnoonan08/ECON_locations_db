@@ -19,6 +19,10 @@ class GradesDatabase:
         df_ = pd.read_sql_query("SELECT * from grades", self.conn,index_col='index')
         return df_
 
+
+    def getChip(self,chip_id):
+        df_ = pd.read_sql_query(f"SELECT * from grades WHERE chip_id = {chip_id}", self.conn,index_col='index')
+        return df_
     ### to add,
     ###    - function to look up grade of specific chip
     ###    - function to assign grade for a specific chip
