@@ -4,6 +4,38 @@ from datetime import datetime
 import pandas as pd
 
 
+production_lot_map = {'N61.H30.00':'A',
+                      'N61.H52.00':'B',
+                      'P1':'C',
+                      'P1v2':'D',
+}
+
+ECOND_grade_map = {10:'B', #0.99
+                   9:'D', #1.01
+                   8:'F', #1.03
+                   7:'H', #1.05
+                   6:'K', #1.08
+                   5:'Q', #1.14
+                   4:'W', #1.20
+                   3:'Y',
+                   2:'Y',
+                   1:'Y',
+                   0:'X',
+                  }
+
+qualToVoltage = {10:0.99,
+                 9:1.01,
+                 8:1.03,
+                 7:1.05,
+                 6:1.08,
+                 5:1.14,
+                 4:1.20,
+                 3:1.26,
+                 2:1.32}
+
+ECONT_grade_map = {1:'A',
+                   0:'X'}
+
 class LocationsDatabase:
     def __init__(self,filename):
         self.conn = sqlite3.connect(filename)
@@ -23,9 +55,9 @@ class LocationsDatabase:
         data = (chip_id,'CHECKIN',tray_number,chip_position,tray_number,chip_position,location,status,str(timestamp))
         self.cursor.execute(sql_cmd_insert,data)
 
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time)
-                            VALUES(?,?,?,?,?,?,?) '''
-        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp))
+        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp),"","")
         self.cursor.execute(sql_cmd_insert,data)
 
     def chipInDatabase(self,id_value,tableName='locations'):
@@ -100,15 +132,27 @@ class LocationsDatabase:
         self.cursor.execute(sql_cmd_insert,data)
 
     def setChipGrade(self,chip_id,grade,comments="",timestamp=None):
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time)
-                            VALUES(?,?,?,?,?,?,?) '''
+        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
         chip_info = list(self.cursor.fetchone())
-        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp))
+        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),"","")
+        self.cursor.execute(sql_cmd_insert,data)
+
+    def setChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
+        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
+        chip_info = list(self.cursor.fetchall()[-1])
+        data = chip_info[:6] + [str(timestamp),serial_number,shipment_note]
         self.cursor.execute(sql_cmd_insert,data)
 
     def getStatusForTray(self,tray_number):
@@ -120,7 +164,7 @@ class LocationsDatabase:
         df_ = self.getCurrentLocations()
         return df_[df_.current_tray==tray_number]
 
-    def rejectChip(self, chip_id, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):        
+    def rejectChip(self, chip_id, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
 
@@ -130,21 +174,103 @@ class LocationsDatabase:
         data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
 
-    def shipTrays(self, trays, destination, comments="", timestamp=None):
+    def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        csvFileName = f'ECON_upload_{shipment_number:04d}.csv'
+        _csvFile = open(csvFileName,'w')
+        _csvFile.write('KIND_OF_PART,SERIAL_NUMBER,BATCH_NUMBER,BARCODE,NAME_LABEL,LOCATION,INSTITUTION,COMMENT_DESCRIPTION,MANUFACTURER,PRODUCTION_DATE\n')
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        for tray_number in trays:
-            chipsInTray = self.getChipsInTray(tray_number).to_numpy()
-            chipsInTray[:,1] = "SHIPPED" #update entry_type
-            chipsInTray[:,2] = chipsInTray[:,4] #update intial_tray
-            chipsInTray[:,3] = chipsInTray[:,5] #update initial_position
-            chipsInTray[:,6] = destination
-            chipsInTray[:,7] = comments
-            chipsInTray[:,8] = timestamp
-            
-            for chip in chipsInTray:
-                self.cursor.execute(sql_cmd_insert, chip)
+        df = self.getCurrentStatus().set_index('chip_id')
+
+        full_chip_list = []
+
+        if type(trays) is int:
+            trays = [trays]
+
+        for _tray_number in trays:
+            print(_tray_number)
+            chips = self.getChipsInTray(_tray_number)
+            isECOND = (self.getStatusForTray(_tray_number).chip_type=='ECOND').all()
+            isECONT = (self.getStatusForTray(_tray_number).chip_type=='ECONT').all()
+
+            for _chip in chips.itertuples():
+                chip_id = _chip.chip_id
+                if _chip.entry_type=='SHIPPED':
+                    print(f'Chip {chip_id:07d} is already listed as having been shipped, skipping')
+                    continue
+                if isECOND:
+                    _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                    _grade = ECOND_grade_map[_quality]
+                    _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
+                    _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                else:
+                    try:
+                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                        _grade = ECONT_grade_map[_quality]
+                        _voltage_str = ''
+                        _voltage_comment = ''
+                    except:
+                        _quality = 0
+                        print(f'Chip {chip_id:07d} not found in grades db!!!!!')
+                        _grade = ECONT_grade_map[_quality]
+                        _voltage_str = ''
+                        _voltage_comment = 'Possibly untested chip'
+
+                #get wafer production log grade
+                _lot = production_lot_map[df.loc[chip_id].pkg_batch]
+                #get packaging date
+                _pkg_date = df.loc[chip_id].pkg_date
+
+                #start buiding serial number
+                _serial = '320ICEC'
+                _serial += df.loc[chip_id].chip_type[-1:]
+                _serial += _grade
+                _serial += _lot
+                _serial
+
+                #count how many chips already have a serial number with the same grade and lot labels, increment by 1
+                N = df.serial_number.str.startswith(_serial).sum()+1
+                _serial += f'{N:05d}'
+
+                #put this chip serial number into the dataframe
+                df.loc[chip_id,'serial_number'] = _serial
+                full_chip_list.append(_serial)
+                #update the locations database with the shipment
+                data = (chip_id,
+                        'SHIPPED',
+                        _chip.current_tray,
+                        _chip.current_position,
+                        _chip.current_tray,
+                        _chip.current_position,
+                        destination,
+                        _chip.comments,
+                        timestamp)
+                self.cursor.execute(sql_cmd_insert,data)
+                self.setChipSerialNumber(chip_id,_serial,shipment_note,timestamp)
+
+                #write data into csv file
+                T_D = 'T' if isECONT else 'D'
+                KIND_OF_PART = f'ECON-{T_D}'
+                SERIAL_NUMBER = _serial
+                BATCH_NUMBER = f'{shipment_number:04d}-{_tray_number:05d}'
+                BARCODE = _serial
+                NAME_LABEL = f'ECON-{T_D}{_voltage_str}-{chip_id:07d}'
+                LOCATION = "FNAL"
+                INSTITUTION = "Fermi National Accelerator Lab."
+                COMMENT_DESCRIPTION = f"ECON-{T_D} chip; FNAL chip ID {chip_id:07d} {_voltage_comment} {shipment_note}"
+                COMMENT_DESCRIPTION = COMMENT_DESCRIPTION.replace(',',';') #replace any accidental commas with semicolons to avoid issues with CSV
+                MANUFACTURER = "TSMC"
+                PRODUCTION_DATE = datetime.strptime(_pkg_date + '-1', "%Y/%W-%w").strftime("%Y-%m-%d") #converts package week to date
+                _csvFile.write(f'{KIND_OF_PART},{SERIAL_NUMBER},{BATCH_NUMBER},{BARCODE},{NAME_LABEL},{LOCATION},{INSTITUTION},{COMMENT_DESCRIPTION},{MANUFACTURER},{PRODUCTION_DATE}\n')
+        _csvFile.close()
+
+        csvFileName = f'ECON_shippingTool_{shipment_number:04d}.csv'
+        _csvFile = open(csvFileName,'w')
+        for chip in full_chip_list:
+            _csvFile.write(f'{chip}\n')
+        _csvFile.close()

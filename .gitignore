@@ -3,3 +3,5 @@ testingCSV/
 sorting_logs/
 __pycache__
 *~
+utils/*.csv
+utils/*.xml
