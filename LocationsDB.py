@@ -174,7 +174,7 @@ class LocationsDatabase:
         data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
 
-    def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None):
+    def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
 
@@ -204,10 +204,15 @@ class LocationsDatabase:
                     print(f'Chip {chip_id:07d} is already listed as having been shipped, skipping')
                     continue
                 if isECOND:
-                    _quality = grade_db.getChip(chip_id).quality.iloc[-1]
-                    _grade = ECOND_grade_map[_quality]
-                    _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
-                    _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                    if is_preseries:
+                        _grade=''
+                        _voltage_str=''
+                        _voltage_comment=''
+                    else:
+                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                        _grade = ECOND_grade_map[_quality]
+                        _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
+                        _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
                 else:
                     try:
                         _quality = grade_db.getChip(chip_id).quality.iloc[-1]
@@ -237,6 +242,9 @@ class LocationsDatabase:
                 N = df.serial_number.str.startswith(_serial).sum()+1
                 _serial += f'{N:05d}'
 
+                if is_preseries:
+                    _serial = f'320ICEC{df.loc[chip_id].chip_type[-1:]}{chip_id:07d}'
+
                 #put this chip serial number into the dataframe
                 df.loc[chip_id,'serial_number'] = _serial
                 full_chip_list.append(_serial)
@@ -251,6 +259,7 @@ class LocationsDatabase:
                         _chip.comments,
                         timestamp)
                 self.cursor.execute(sql_cmd_insert,data)
+
                 self.setChipSerialNumber(chip_id,_serial,shipment_note,timestamp)
 
                 #write data into csv file
@@ -258,6 +267,8 @@ class LocationsDatabase:
                 KIND_OF_PART = f'ECON-{T_D}'
                 SERIAL_NUMBER = _serial
                 BATCH_NUMBER = f'{shipment_number:04d}-{_tray_number:05d}'
+                if is_preseries:
+                    BATCH_NUMBER = f'{shipment_number:04d}-PS-{_tray_number:05d}'
                 BARCODE = _serial
                 NAME_LABEL = f'ECON-{T_D}{_voltage_str}-{chip_id:07d}'
                 LOCATION = "FNAL"
