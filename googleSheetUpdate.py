@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import numpy as np
 import pandas as pd
 
@@ -7,12 +9,14 @@ from LocationsDB import LocationsDatabase
 from GradesDB import GradesDatabase
 
 from datetime import datetime
+import os
 
+_cwd = os.path.dirname(os.path.abspath(__file__))
 
-loc_db = LocationsDatabase('../database_files/ECON_Locations_DB.db')
+loc_db = LocationsDatabase(f'{_cwd}/database_files/ECON_Locations_DB.db')
 df = loc_db.getCurrentLocations()
 
-grades_db = GradesDatabase('../database_files/test_grade_database.db')
+grades_db = GradesDatabase(f'{_cwd}/database_files/test_grade_database.db')
 df_grades = grades_db.loadGradesDatrabase()
 
 
@@ -99,6 +103,8 @@ sh = gc.open("ECON Status")
 availability = sh.get_worksheet(0)
 econd = sh.get_worksheet(1)
 econt = sh.get_worksheet(2)
+econd_timeseries = sh.get_worksheet(3)
+econt_timeseries = sh.get_worksheet(4)
 
 n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted)].sum().values[:11].astype(int).tolist()
 n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted)].sum().values[:11].astype(int).tolist()
@@ -109,9 +115,11 @@ n_T_unsorted = d_T[(d_T.Location=='WH14') & (~d_T.isSorted)].sum().values[:5].as
 n_T_shipped = d_T[(d_T.Location!='WH14')].sum().values[:5].astype(int).tolist()
 
 availability.update([n_D_sorted,n_D_unsorted,n_D_shipped],'B5')
-availability.update([n_T_sorted,n_T_unsorted,n_T_shipped],'B11')
+availability.update([n_T_sorted,n_T_unsorted,n_T_shipped],'B12')
 
-availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
+#availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
+econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
+econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
 
 econd.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econd.update([d_D.reset_index().columns.values.tolist()] + d_D.reset_index().values.tolist(),'A3')
