@@ -17,7 +17,7 @@ loc_db = LocationsDatabase(f'{_cwd}/database_files/ECON_Locations_DB.db')
 df = loc_db.getCurrentLocations()
 
 grades_db = GradesDatabase(f'{_cwd}/database_files/test_grade_database.db')
-df_grades = grades_db.loadGradesDatrabase()
+df_grades = grades_db.loadGradesDatabase()
 
 
 df = df.merge(df_grades[['chip_id','quality']],on='chip_id',how='outer').fillna(-1)
@@ -122,7 +122,9 @@ econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.arr
 econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
 
 econd.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
+econd.batch_clear(['A4:Z999'])
 econd.update([d_D.reset_index().columns.values.tolist()] + d_D.reset_index().values.tolist(),'A3')
 
 econt.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
+econt.batch_clear(['A4:Z999'])
 econt.update([d_T.reset_index().columns.values.tolist()] + d_T.reset_index().values.tolist(),'A3')
