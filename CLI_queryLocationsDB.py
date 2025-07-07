@@ -23,8 +23,8 @@ def main(tray, chip, get_next_tray, location, history, status, sorting_tray_summ
     loc_db = LocationsDatabase(locations_db)
 
     if get_next_tray:
-        full_barcode_list = loc_db.getCurrentLocations().current_tray.unique().tolist()
-        full_barcode_list += loc_db.getCurrentLocations().initial_tray.unique().tolist()
+        full_barcode_list = loc_db.loadLocationsDatabase().current_tray.unique().tolist()
+        full_barcode_list += loc_db.loadLocationsDatabase().initial_tray.unique().tolist()
         full_barcode_list = np.unique(full_barcode_list)
 
         ECONT_initial = full_barcode_list[full_barcode_list<7000].max() + 1
