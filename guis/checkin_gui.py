@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLineEdit, QComboBox, QPushButton, QLabel, QHBoxLayout, QSpinBox, QTableWidget, QTableWidgetItem
+    QApplication, QWidget, QVBoxLayout, QLineEdit, QComboBox, QPushButton, QLabel, QHBoxLayout, QSpinBox, QTableWidget, QTableWidgetItem, QFileDialog
 )
+
+import os
 
 import sys
 sys.path.append('.')
 from LocationsDB import LocationsDatabase
 
-class ChipSummaryWindow(QWidget):
-    def __init__(self, _data):
+### second window, showing summary of chips that will be checked in
+class ChipSummaryAndCheckinWindow(QWidget):
+    def __init__(self, _data, _file_locations_db, _barcode):
         super().__init__()
         self.data = _data
         self.setWindowTitle("Chips To Check In")
         self.setGeometry(150, 150, 800, 20*len(_data))
         layout = QVBoxLayout()
+
+        self.locations_db = LocationsDatabase(_file_locations_db)
+        tray_exists = self.locations_db.checkTrayExists(self.data[0][2])
 
         table = QTableWidget()
         table.setRowCount(len(self.data))
@@ -31,11 +37,19 @@ class ChipSummaryWindow(QWidget):
 
         layout.addWidget(table)
 
+        self.error_label=  QLabel('')
+        self.error_label.setFixedHeight(0)
+        layout.addWidget(self.error_label)
         # Button
         self.button = QPushButton("Confirm Checkin?", self)
         self.button.clicked.connect(self.checkin)
         layout.addWidget(self.button)
-
+        if tray_exists:
+            self.button.setEnabled(False)
+            self.error_label.setText(f"<font color='red' size=6>Tray with barcode {_barcode} already exists in the locations database </font>")
+            self.error_label.setFixedHeight(35)
+        else:
+            self.button.setEnabled(True)
         # Button
         self.cancel_button = QPushButton("Cancel", self)
         self.cancel_button.clicked.connect(self.close)
@@ -45,10 +59,22 @@ class ChipSummaryWindow(QWidget):
 
     def checkin(self):
         for c in self.data:
+            #example of what one chip's data looks like
+            # [1050072, 'ECOND', 10500, 72, 'WH14', '3/2025', 'N61H52.00']
+            c_id, c_type, c_tray, c_pos, c_loc, c_date, c_lot = c
+            self.locations_db.checkin_chip(
+                chip_id = c_id,
+                chip_type = c_type,
+                tray_number = c_tray,
+                chip_position = c_pos,
+                location = c_loc,
+                pkg_date = c_date,
+                pkg_batch = c_lot)
             print(c)
         self.close()
+        self.locations_db.commitAndClose()
 
-
+#primary gui window
 class ECONCheckinWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -113,10 +139,22 @@ class ECONCheckinWidget(QWidget):
         self.location.setText('WH14')
         layout.addWidget(self.location)
 
-        layout.addWidget(QLabel('Locations Database File:'))
-        self.db_file = QLineEdit(self)
-        self.db_file.setText('')
-        layout.addWidget(self.db_file)
+        # Button to open a file
+        self.file_locations_db = QLineEdit(self)
+        self.file_locations_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db')
+        self.file_locations_db.textChanged.connect(self.validate_options) #validate the selections
+
+        self.browse_button = QPushButton("Browse Files", self)
+        self.browse_button.clicked.connect(self.open_file_dialog)
+        self.browse_button.setFixedWidth(100)
+
+        self.locations_db_label = QLabel('Locations Database File:')
+        layout.addWidget(self.locations_db_label)
+        db_layout = QHBoxLayout()
+        db_layout.addWidget(self.browse_button)
+        db_layout.addWidget(self.file_locations_db)
+        layout.addLayout(db_layout)
+
 
         # Button
         self.checkin_button = QPushButton("Check In", self)
@@ -132,17 +170,32 @@ class ECONCheckinWidget(QWidget):
         # Set layout
         self.setLayout(layout)
 
+    def open_file_dialog(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/",
+                                                   "Database file (*db)")
+        if file_path:
+            print(f"Selected file: {file_path}")
+            self.file_locations_db.setText(file_path)
+
     def commit_and_close(self):
         print('Committing and Closing')
         self.close()
 
+
+    # The checkin button will only appear if we have selected a value for the date and  wafer lot and have a valid barcode and locations database
     def validate_options(self):
         """Validate the barcode_text to contain 'ECON'"""
         pkg_date_valid = self.pkg_week.currentText() not in ["", "Select an option"]  # Check if a valid option is selected
         wafer_lot_valid = self.wafer_lot.currentText() not in ["", "Select an option"]  # Check if a valid option is selected
         barcode_valid =  ("ECONT-" in self.barcode_text.text() or "ECOND-" in self.barcode_text.text()) and len(self.barcode_text.text())==11
+        locations_db = self.file_locations_db.text()
+        locations_db_valid = os.path.exists(locations_db)
+        if not locations_db_valid:
+            self.locations_db_label.setText("Locations Database Files: <font color='red'>File Path Does Not Exist</font>")
+        else:
+            self.locations_db_label.setText("Locations Database Files:")
 
-        if pkg_date_valid and wafer_lot_valid and barcode_valid:
+        if pkg_date_valid and wafer_lot_valid and barcode_valid and locations_db_valid:
             self.checkin_button.setEnabled(True)
         else:
             self.checkin_button.setEnabled(False)
@@ -155,6 +208,7 @@ class ECONCheckinWidget(QWidget):
         _n_chips = self.n_chips.value()
         _wafer_lot = self.wafer_lot.currentText()
         _location = self.location.text()
+        _file_locations_db = self.file_locations_db.text()
         print(f"Barcode: {_barcode}")
         print(f"Pkg Date: {_pkg_date}")
         print(f"Wafer Lot: {_wafer_lot}")
@@ -171,7 +225,7 @@ class ECONCheckinWidget(QWidget):
                 [_chip_id, _chip_type, _tray_number, _chip_pos, _location, _pkg_date, _wafer_lot]
             )
         # Optional: Show it in the UI too
-        self.chip_summary_window = ChipSummaryWindow(full_tray_data)
+        self.chip_summary_window = ChipSummaryAndCheckinWindow(full_tray_data, _file_locations_db, _barcode)
         self.chip_summary_window.show()
 
         #reset values
