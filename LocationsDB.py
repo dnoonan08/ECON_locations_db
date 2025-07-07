@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from datetime import datetime
 
@@ -38,8 +39,11 @@ ECONT_grade_map = {1:'A',
 
 class LocationsDatabase:
     def __init__(self,filename):
-        self.conn = sqlite3.connect(filename)
-        self.cursor = self.conn.cursor()
+        if os.path.exists(filename):
+            self.conn = sqlite3.connect(filename)
+            self.cursor = self.conn.cursor()
+        else:
+            print("File Does Not Exists")
 
     def commitAndClose(self):
         self.conn.commit()
@@ -59,6 +63,12 @@ class LocationsDatabase:
                             VALUES(?,?,?,?,?,?,?,?,?) '''
         data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp),"","")
         self.cursor.execute(sql_cmd_insert,data)
+
+    def checkTrayExists(self,tray_number,tableName='locations'):
+        """Does a chip with this id already exist in the database"""
+        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE initial_tray = ?", (tray_number,))
+        result = self.cursor.fetchone()
+        return result is not None
 
     def chipInDatabase(self,id_value,tableName='locations'):
         """Does a chip with this id already exist in the database"""
