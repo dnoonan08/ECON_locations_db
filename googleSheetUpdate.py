@@ -116,8 +116,8 @@ n_T_shipped = d_T[(d_T.Location!='WH14')].sum().values[:5].astype(int).tolist()
 
 availability.update([n_D_sorted,n_D_unsorted,n_D_shipped],'B5')
 availability.update([n_T_sorted,n_T_unsorted,n_T_shipped],'B12')
+availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 
-#availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
 econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
 
