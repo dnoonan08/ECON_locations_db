@@ -17,7 +17,7 @@ loc_db = LocationsDatabase(f'{_cwd}/database_files/ECON_Locations_DB.db')
 df = loc_db.getCurrentLocations()
 
 grades_db = GradesDatabase(f'{_cwd}/database_files/test_grade_database.db')
-df_grades = grades_db.loadGradesDatabase()
+df_grades = grades_db.getCurrentGrades()
 
 
 df = df.merge(df_grades[['chip_id','quality']],on='chip_id',how='outer').fillna(-1)
