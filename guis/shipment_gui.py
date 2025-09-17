@@ -20,10 +20,11 @@ from PyQt6.QtWidgets import (
 )
 
 import os
+from collections import Counter
 
 import sys
-sys.path.append('..')
-from LocationsDB import LocationsDatabase
+sys.path.append('.')
+from LocationsDB import LocationsDatabase,ECOND_grade_map
 from GradesDB import GradesDatabase
 
 # Main window
@@ -86,12 +87,17 @@ class ShipmentWindow(QWidget):
         # Tray list input
         layout.addWidget(QLabel('Tray Barcode:'))
         self.barcodes = QLineEdit(self)
+        self.barcodes.textChanged.connect(self.validate_options) #validate the selections
         self.barcodes.setPlaceholderText("Enter barcode for trays, use comma to separate multiple barcodes.")
         layout.addWidget(self.barcodes)
 
-        #Tray list display
+        # Tray list display
         self.tray_list_widget = QListWidget()
         layout.addWidget(self.tray_list_widget)
+
+        # Grade list display
+        self.grade_list_widget = QListWidget()
+        layout.addWidget(self.grade_list_widget)
 
         self.add_disable_reason_label = QLabel("")
         layout.addWidget(self.add_disable_reason_label)
@@ -159,33 +165,66 @@ class ShipmentWindow(QWidget):
 
 
     def update_tray_list(self):
+        qualities = []
         self.tray_list_widget.clear()
         for tray in sorted(self.tray_list):
             self.tray_list_widget.addItem(tray)
+            tray_number = int(tray.split('-')[-1])
+            chips = self.locations_db.getChipsInTray(tray_number)
+            qualities+=[self.grade_db.getChip(chip.chip_id).quality.iloc[-1] for chip in chips.itertuples()]
+        counted_qualities = sorted(Counter(qualities).items(), reverse=True)
+        self.grade_list_widget.clear()
+        for q,c in counted_qualities:
+            self.grade_list_widget.addItem(f"{ECOND_grade_map[q]}:\t{c}")
         self.validate_options()
+        
 
     def append_barcode(self):
-        error_dialog = ""
+        ignore_different_grades=False
+        skip_different_grades=False
+        warning_dialog = ""
+        
         for barcode in self.barcodes.text().split(','):
             barcode = barcode.strip()
             try:                
                 ECON_type = barcode.split('-')[0]
                 tray_number = int(barcode.split('-')[-1])
                 tray_exists = ((ECON_type == 'ECOND' and tray_number >= 10000) or (ECON_type == 'ECONT' and tray_number < 10000)) and self.locations_db.checkTrayExists(tray_number)
+                chips = self.locations_db.getChipsInTray(tray_number)
+                qualities = [self.grade_db.getChip(chip.chip_id).quality.iloc[-1] for chip in chips.itertuples()]
+                counted_qualities = sorted(Counter(qualities).items(), reverse=True)
             except Exception as e:
                 error_dialog = QMessageBox.critical(self,
                 "Error",
                 f"Error when checking tray {barcode} in locations database:\n{e}")
                 return
+            if not ignore_different_grades and len(counted_qualities)>1:
+                if skip_different_grades:
+                    continue
+                question=f'Tray:{barcode} cotains chip with different grades:\n'
+                for q,c in counted_qualities:
+                    question+=f"{ECOND_grade_map[q]}: {c}\n"
+                question+='Do you want to add this tray anyway?'
+                reply = QMessageBox.question(self,
+                        'Confirmation',
+                        question,
+                        QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.YesToAll | QMessageBox.StandardButton.NoToAll)
+                if reply == QMessageBox.StandardButton.No:
+                    continue
+                elif reply == QMessageBox.StandardButton.YesToAll:
+                    ignore_different_grades=True
+                elif reply == QMessageBox.StandardButton.NoToAll:                
+                    skip_different_grades=True
+                    continue
             if tray_exists:
                 self.tray_list.add(barcode)
             else:
-                error_dialog += f"{barcode}, "
-        if error_dialog:
-            error_dialog = error_dialog[:-2]  # Remove trailing comma and space
+                warning_dialog += f"{barcode}, "
+        if warning_dialog:
+            warning_dialog = warning_dialog[:-2]  # Remove trailing comma and space
             QMessageBox.warning(self,
             "Tray(s) not Found",
-            f"The following tray(s) do not exist in the locations database:\n{error_dialog}")
+            f"The following tray(s) do not exist in the locations database:\n{warning_dialog}")
         self.barcodes.clear()
         self.update_tray_list()
 
@@ -222,7 +261,7 @@ class ShipmentWindow(QWidget):
                 self.tray_list.clear()
                 self.update_tray_list()
             except Exception as e:
-                error_dialog = QMessageBox.critical(self,"Error",f"Error when updating shipment process in location database:\n{e}")
+                error_dialog = QMessageBox.critical(self,"Error",f"Error when updating shipment process in location database:\n{e}\nPlease check if the tray is tested and sorted")
         else:
             pass
 
@@ -256,14 +295,20 @@ class ShipmentWindow(QWidget):
             self.load_button.setEnabled(False)
         
         databases_loaded = self.locations_db is not None and self.grade_db is not None
-        if databases_loaded:
-            self.add_disable_reason_label.setText("")
+        add_remove_disable_reason = ""
+        if not databases_loaded:
+            add_remove_disable_reason+="Databases not loaded. "
+        if self.barcodes.text()=="":
+            add_remove_disable_reason+="No barcode entered. "
+        if not add_remove_disable_reason:
             self.add_button.setEnabled(True)
             self.remove_button.setEnabled(True)
+            self.add_disable_reason_label.setText("")
+
         else:
-            self.add_disable_reason_label.setText("<font color='red'>Databases not loaded.</font>")
             self.add_button.setEnabled(False)
             self.remove_button.setEnabled(False)
+            self.add_disable_reason_label.setText(f"<font color='red'>{add_remove_disable_reason}</font>")
 
         ship_disable_reason = ""
         if not self.tray_list:
