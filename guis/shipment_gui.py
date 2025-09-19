@@ -326,6 +326,16 @@ class ShipmentWindow(QWidget):
         try:
             self.locations_db = LocationsDatabase(self.file_locations_db.text())
             self.grade_db = grade_db = GradesDatabase(self.file_grade_db.text())
+            tables_in_locations_db = ["locations","status"]
+            tables_in_grade_db =["grades"]
+            for table in tables_in_locations_db:
+                query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
+                assert self.locations_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in location database:\n{self.file_locations_db.text()}"
+
+            for table in tables_in_grade_db:
+                query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
+                assert self.grade_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in grade database:\n{self.file_grade_db.text()}"
+
             self.validate_options()
         except Exception as e:
             error_dialog = QMessageBox.critical(self,"Database Load Error",f"Error loading databases:\n{e}")
@@ -333,7 +343,10 @@ class ShipmentWindow(QWidget):
             self.grade_db = None
 
     def close(self):
-        self.locations_db.commitAndClose()
+        if(self.locations_db!=None):
+            self.locations_db.commitAndClose()
+        if(self.grade_db!=None):
+            self.grade_db.commitAndClose()
         super().close()
     
 if __name__ == "__main__":
