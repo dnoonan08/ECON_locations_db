@@ -68,7 +68,7 @@ class LocationsDatabase:
 
     def checkTrayExists(self,tray_number,tableName='locations'):
         """Does a chip with this id already exist in the database"""
-        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE initial_tray = ?", (tray_number,))
+        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE initial_tray = ? OR current_tray = ?", (tray_number,tray_number,))
         result = self.cursor.fetchone()
         return result is not None
 
