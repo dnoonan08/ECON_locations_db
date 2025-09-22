@@ -155,6 +155,16 @@ class LocationsDatabase:
         data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),"","")
         self.cursor.execute(sql_cmd_insert,data)
 
+    def setChipLocation(self, chip_id, entry_type, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):
+        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        data = (chip_id,entry_type,int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
+        self.cursor.execute(sql_cmd_insert,data)
+
     def setChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
         sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
                             VALUES(?,?,?,?,?,?,?,?,?) '''

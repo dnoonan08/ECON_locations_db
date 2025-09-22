@@ -170,7 +170,7 @@ class DBWindow(QWidget):
         left_panel.addWidget(self.change_disable_label)
         self.operations = QComboBox(self)
         self.operations.setPlaceholderText("Select Operation")
-        self.operations.addItems(["Change Status","Change Grade"])
+        self.operations.addItems(["Change Status","Change Grade","Change Location"])
         self.operations.setCurrentText("Change Status")
         self.operations.currentIndexChanged.connect(self.update_options)
         operation_layout.addWidget(self.operations)
@@ -437,13 +437,12 @@ class DBWindow(QWidget):
             self.grade_db = None
 
     def update_options(self):
+        self.options.clear()
         match self.operations.currentText():
             case "Change Status":
-                self.options.clear()
                 self.options.addItems(['CHECKIN','TESTED','SORTED','SHIPPED','REJECTED'])
                 self.options.setCurrentText('REJECTED')
             case "Change Grade":
-                self.options.clear()
                 self.options.addItems(['A','B','D','F','H','K','Q','W','Y','X','NotTested'])
                 self.options.setCurrentText('X')
 
@@ -453,6 +452,8 @@ class DBWindow(QWidget):
                 self.change_status()
             case "Change Grade":
                 self.change_grade()
+            case "Change Location":
+                self.change_location()
     
     def change_status(self):
         match self.options.currentText():
@@ -466,6 +467,10 @@ class DBWindow(QWidget):
     def change_grade(self):
         QMessageBox.warning(self,"Under Construction","Change Grade is under construction")
 
+    def change_location(self):
+        change_location_diaglog = ChangeLocationSummaryAndConfirmDialog(self.df_picked,self.locations_db)
+        if(change_location_diaglog.exec()):
+            self.select_tray()
     def select_all(self):
         for button in self.chip_bottons:
             if button.isEnabled():
@@ -482,7 +487,6 @@ class DBWindow(QWidget):
         if(self.grade_db!=None):
             self.grade_db.commitAndClose()
         super().close()
-
 
 ## Dialog for chips to reject
 class RejectSummaryAndConfirmDialog(QDialog):
@@ -533,7 +537,7 @@ class RejectSummaryAndConfirmDialog(QDialog):
                 chip_layout.addWidget(QLabel(f"{row['current_position']}"),i+1,1)
                 chip_layout.addWidget(QLabel(f"{row['entry_type']}"),i+1,2)
                 chip_layout.addWidget(QLabel(f"{row['quality']}"),i+1,3)
-                chip_layout.addWidget(self.destination_trays[i],i+1,4)                
+                chip_layout.addWidget(self.destination_trays[i],i+1,4)
                 chip_layout.addWidget(self.destination_positions[i],i+1,5)
                 self.destination_trays[i].setValidator(tray_contraint)
                 self.destination_trays[i].textChanged.connect(self.validate_options)
@@ -544,7 +548,7 @@ class RejectSummaryAndConfirmDialog(QDialog):
         self.comment = QLineEdit(self)
         self.comment.setPlaceholderText("Comment")
         layout.addWidget(self.comment)
-        self.accept_disable_label = QLabel("asd")
+        self.accept_disable_label = QLabel("")
         layout.addWidget(self.accept_disable_label)
         self.button_box = QDialogButtonBox( QDialogButtonBox.StandardButton.Ok |  QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
@@ -570,8 +574,8 @@ class RejectSummaryAndConfirmDialog(QDialog):
     def change_all_tray(self):
         for tray in self.destination_trays:
             tray.setText(self.destination_tray_all.text())
-    def accept(self): 
-        #override the accept        
+    def accept(self):
+        #override the accept
         question=f'The following chip(s) will be set to REJECT:\n'
         for i,(_, row) in enumerate(self.df_picked.iterrows()):
             question+=f'chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n'
@@ -597,8 +601,114 @@ class RejectSummaryAndConfirmDialog(QDialog):
                     comments=self.comment.text(),
                     timestamp=timestamp)
                 super().accept()
-        
-                                
+
+## Dialog for chips to change location
+class ChangeLocationSummaryAndConfirmDialog(QDialog):
+    def __init__(self,df_picked_,locations_db_):
+        super().__init__()
+        self.df_picked = df_picked_
+        self.locations_db=locations_db_
+        self.setWindowTitle("Change Locations of Chips")
+        self.setGeometry(150, 150, 800, 20*len(df_picked_)+3)
+        layout = QVBoxLayout()
+        summary_label = QLabel(f"Summary of tray {self.df_picked['current_tray'].iloc[-1]}")
+        summary_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(summary_label)
+        chip_layout = QGridLayout()
+        labels = ["Chip","Position","Entry","Quality","Destiniation Tray","Destiniation Position"]
+        for i,label in enumerate(labels):
+            chip_layout.addWidget(QLabel(label),0,i)
+
+        self.destination_trays=[QLineEdit(self) for i in range(len(df_picked_))]
+        self.destination_positions=[QLineEdit(self) for i in range(len(df_picked_))]
+
+        tray_contraint = QIntValidator()
+        tray_contraint.setRange(1, 99999)
+        position_contraint = QIntValidator()
+        position_contraint.setRange(1, 90)
+
+        if len(self.df_picked) >= 2:
+            self.destination_tray_all = QLineEdit(self)
+            self.destination_tray_all.setValidator(tray_contraint)
+            self.destination_tray_all.textChanged.connect(self.change_all_tray)
+            chip_layout.addWidget(self.destination_tray_all,1,4)
+            for i,(_, row) in enumerate(self.df_picked.iterrows()):
+                chip_layout.addWidget(QLabel(f"{row['chip_id']}"),i+2,0)
+                chip_layout.addWidget(QLabel(f"{row['current_position']}"),i+2,1)
+                chip_layout.addWidget(QLabel(f"{row['entry_type']}"),i+2,2)
+                chip_layout.addWidget(QLabel(f"{row['quality']}"),i+2,3)
+                chip_layout.addWidget(self.destination_trays[i],i+2,4)
+                chip_layout.addWidget(self.destination_positions[i],i+2,5)
+                self.destination_trays[i].textChanged.connect(self.validate_options)
+                self.destination_trays[i].setValidator(tray_contraint)
+                self.destination_positions[i].setValidator(position_contraint)
+                self.destination_positions[i].textChanged.connect(self.validate_options)
+        else:
+            for i,(_, row) in enumerate(self.df_picked.iterrows()):
+                chip_layout.addWidget(QLabel(f"{row['chip_id']}"),i+1,0)
+                chip_layout.addWidget(QLabel(f"{row['current_position']}"),i+1,1)
+                chip_layout.addWidget(QLabel(f"{row['entry_type']}"),i+1,2)
+                chip_layout.addWidget(QLabel(f"{row['quality']}"),i+1,3)
+                chip_layout.addWidget(self.destination_trays[i],i+1,4)
+                chip_layout.addWidget(self.destination_positions[i],i+1,5)
+                self.destination_trays[i].setValidator(tray_contraint)
+                self.destination_trays[i].textChanged.connect(self.validate_options)
+                self.destination_positions[i].setValidator(position_contraint)
+                self.destination_positions[i].textChanged.connect(self.validate_options)
+
+        layout.addLayout(chip_layout)
+        self.comment = QLineEdit(self)
+        self.comment.setPlaceholderText("Comment")
+        layout.addWidget(self.comment)
+        self.accept_disable_label = QLabel("")
+        layout.addWidget(self.accept_disable_label)
+        self.button_box = QDialogButtonBox( QDialogButtonBox.StandardButton.Ok |  QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+        self.validate_options()
+        self.setLayout(layout)
+    def validate_options(self):
+        accept_disable_reason = ""
+        tray_valid = all([tray.text().isdigit() and 1<=int(tray.text())<=99999 for tray in self.destination_trays])
+        position_valid = all([pos.text().isdigit() and 1 <= int(pos.text()) <= 90 for pos in self.destination_positions])
+        if not tray_valid:
+            accept_disable_reason+="Tray number(s) invalid. "
+        if not position_valid:
+            accept_disable_reason+="Position number(s) invalid. "
+        if accept_disable_reason:
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
+            self.accept_disable_label.setText(f"<font color='red'>{accept_disable_reason}</font>")
+        else:
+            self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
+            self.accept_disable_label.setText("")
+        pass
+    def change_all_tray(self):
+        for tray in self.destination_trays:
+            tray.setText(self.destination_tray_all.text())
+    def accept(self):
+        #override the accept
+        question=f'The following chip(s) will be put into new location:\n'
+        for i,(_, row) in enumerate(self.df_picked.iterrows()):
+            question+=f'chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n'
+        question+=f'{"comment: "+self.comment.text() if self.comment.text() else "with no comment"}\n\nDo you want to proceed?'
+        reply = QMessageBox.question(self,
+                'Confirmation',
+                question,
+                QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+        if reply == QMessageBox.StandardButton.Yes:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for i,(_, row) in enumerate(self.df_picked.iterrows()):
+                self.locations_db.setChipLocation(
+                    chip_id=row['chip_id'],
+                    entry_type=row['entry_type'],
+                    start_tray=row['current_tray'],
+                    start_position=row['current_position'],
+                    new_tray=int(self.destination_trays[i].text()),
+                    new_position=int(self.destination_positions[i].text()),
+                    comments=self.comment.text(),
+                    timestamp=timestamp)
+                super().accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
