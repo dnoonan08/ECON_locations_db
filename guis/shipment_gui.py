@@ -24,7 +24,7 @@ from collections import Counter
 
 import sys
 sys.path.append('.')
-from LocationsDB import LocationsDatabase,ECOND_grade_map
+from LocationsDB import LocationsDatabase,ECOND_grade_map,ECONT_grade_map
 from GradesDB import GradesDatabase
 
 # Main window
@@ -165,25 +165,50 @@ class ShipmentWindow(QWidget):
 
 
     def update_tray_list(self):
-        qualities = []
+        ECOND_qualities = []
+        ECONT_qualities = []
         self.tray_list_widget.clear()
         for tray in sorted(self.tray_list):
+            ECON_type = tray.split('-')[0]
             self.tray_list_widget.addItem(tray)
             tray_number = int(tray.split('-')[-1])
             chips = self.locations_db.getChipsInTray(tray_number)
-            qualities+=[self.grade_db.getChip(chip.chip_id).quality.iloc[-1] for chip in chips.itertuples()]
-        counted_qualities = sorted(Counter(qualities).items(), reverse=True)
+            if(ECON_type == 'ECOND'):
+                qualities=[]
+                for chip in chips.itertuples():
+                    if(self.grade_db.getChip(chip.chip_id).empty):
+                        qualities.append("Not Tested")
+                    else:
+                        qualities.append(ECOND_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
+                ECOND_qualities+=qualities
+            elif(ECON_type == 'ECONT'):
+                qualities=[]
+                for chip in chips.itertuples():
+                    if(self.grade_db.getChip(chip.chip_id).empty):
+                        qualities.append("Not Tested")
+                    else:
+                        qualities.append(ECOND_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
+                ECONT_qualities+=qualities
+        counted_ECOND_qualities = sorted(Counter(ECOND_qualities).items(), reverse=True)
+        counted_ECONT_qualities = sorted(Counter(ECONT_qualities).items(), reverse=True)
         self.grade_list_widget.clear()
-        for q,c in counted_qualities:
-            self.grade_list_widget.addItem(f"{ECOND_grade_map[q]}:\t{c}")
+        if ECOND_qualities:
+            self.grade_list_widget.addItem("ECOND summary")
+            for q,c in counted_ECOND_qualities:
+                self.grade_list_widget.addItem(f"{q}:\t{c}")
+        if ECONT_qualities:
+            self.grade_list_widget.addItem("ECONT summary")
+            for q, c in counted_ECONT_qualities:
+                self.grade_list_widget.addItem(f"{q}:\t{c}")
         self.validate_options()
         
 
     def append_barcode(self):
         ignore_different_grades=False
         skip_different_grades=False
+        ignore_not_tested=False
+        skip_not_tested=False
         warning_dialog = ""
-        
         for barcode in self.barcodes.text().split(','):
             barcode = barcode.strip()
             try:                
@@ -191,19 +216,54 @@ class ShipmentWindow(QWidget):
                 tray_number = int(barcode.split('-')[-1])
                 tray_exists = ((ECON_type == 'ECOND' and tray_number >= 10000) or (ECON_type == 'ECONT' and tray_number < 10000)) and self.locations_db.checkTrayExists(tray_number)
                 chips = self.locations_db.getChipsInTray(tray_number)
-                qualities = [self.grade_db.getChip(chip.chip_id).quality.iloc[-1] for chip in chips.itertuples()]
+                qualities=[]
+                chip_id_not_tested=[]
+                if(ECON_type == 'ECOND'):
+                    for chip in chips.itertuples():
+                        if(self.grade_db.getChip(chip.chip_id).empty):
+                            qualities.append("Not Tested")
+                            chip_id_not_tested.append(chip.chip_id)
+                        else:
+                            qualities.append(ECOND_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
+                elif(ECON_type == 'ECONT'):
+                    for chip in chips.itertuples():
+                        if(self.grade_db.getChip(chip.chip_id).empty):
+                            qualities.append("Not Tested")
+                            chip_id_not_tested.append(chip.chip_id)
+                        else:
+                            qualities.append(ECONT_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
                 counted_qualities = sorted(Counter(qualities).items(), reverse=True)
             except Exception as e:
                 error_dialog = QMessageBox.critical(self,
                 "Error",
                 f"Error when checking tray {barcode} in locations database:\n{e}")
                 return
+
+            if not ignore_not_tested and "Not Tested" in qualities:
+                if skip_not_tested:
+                    continue
+                question=f'Tray:{barcode} cotains chip not tested:\n'
+                for chip_id in chip_id_not_tested:
+                    question+=f'{chip_id}\n'
+                question+='Do you want to add this tray anyway?'
+                reply = QMessageBox.question(self,
+                        'Confirmation',
+                        question,
+                        QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.YesToAll | QMessageBox.StandardButton.NoToAll)
+                if reply == QMessageBox.StandardButton.No:
+                    continue
+                elif reply == QMessageBox.StandardButton.YesToAll:
+                    ignore_not_tested=True
+                elif reply == QMessageBox.StandardButton.NoToAll:
+                    skip_not_tested=True
+                    continue
+
             if not ignore_different_grades and len(counted_qualities)>1:
                 if skip_different_grades:
                     continue
                 question=f'Tray:{barcode} cotains chip with different grades:\n'
                 for q,c in counted_qualities:
-                    question+=f"{ECOND_grade_map[q]}: {c}\n"
+                    question+=f"{q}: {c}\n"
                 question+='Do you want to add this tray anyway?'
                 reply = QMessageBox.question(self,
                         'Confirmation',
@@ -213,7 +273,7 @@ class ShipmentWindow(QWidget):
                     continue
                 elif reply == QMessageBox.StandardButton.YesToAll:
                     ignore_different_grades=True
-                elif reply == QMessageBox.StandardButton.NoToAll:                
+                elif reply == QMessageBox.StandardButton.NoToAll:
                     skip_different_grades=True
                     continue
             if tray_exists:
