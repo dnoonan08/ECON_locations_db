@@ -29,21 +29,20 @@ import pandas as pd
 from collections import Counter
 from datetime import datetime
 import sys
-sys.path.append('..')
 sys.path.append('.')
 from LocationsDB import LocationsDatabase,ECOND_grade_map,ECONT_grade_map
 from GradesDB import GradesDatabase
 
 Palette_Quality={
-    'A':    '#a1d2b9',
-    'B':    '#d3dcc1', 
-    'D':    '#e0e5c1', 
-    'F':    '#f1f7e5', 
-    'H':    '#c3ced8', 
-    'K':    '#e7edf3', 
-    'Q':    '#f5f5f5', 
-    'W':    '#fffce8', 
-    'Y':    '#fdfeeb',
+    'A':    '#00ff00',
+    'B':    '#00ff00', 
+    'D':    '#041a00', 
+    'F':    '#202e00', 
+    'H':    '#4b6200', 
+    'K':    '#808000',
+    'Q':    '#b9d900',
+    'W':    '#f0f800',
+    'Y':    '#f87e00',
     'X':    '#ff0000',
     'Not Tested':   '#555555'
 }
@@ -52,7 +51,7 @@ Palette_Entry={
     'CHECKIN': '#555555',
     'TESTED': '#008080',
     'SORTED': '#77dd77',
-    'SHIPPED': '#006400',
+    'SHIPPED': '#00ff00',
     'REJECTED': '#ff0000',
 }
 
@@ -81,8 +80,7 @@ class DBWindow(QWidget):
         # Data base initialization
         # Locations DB
         self.file_locations_db = QLineEdit(self)
-        # self.file_locations_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db')
-        self.file_locations_db.setText('/home/vboxuser/Documents/HGCAL/ECON/ECON_locations_db/database_files/ECON_Locations_DB.db')
+        self.file_locations_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db')
         self.file_locations_db.textChanged.connect(self.validate_options)
 
         self.loc_button = QPushButton("Browse Files", self)
@@ -98,8 +96,7 @@ class DBWindow(QWidget):
 
         # Grade DB
         self.file_grade_db = QLineEdit(self)
-        # self.file_grade_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/test_grade_database.db')
-        self.file_grade_db.setText('/home/vboxuser/Documents/HGCAL/ECON/ECON_locations_db/database_files/test_grade_database.db')
+        self.file_grade_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/test_grade_database.db')
         self.file_grade_db.textChanged.connect(self.validate_options)
 
         self.grade_button = QPushButton("Browse Files", self)
@@ -326,18 +323,21 @@ class DBWindow(QWidget):
         legend=dict()
         match self.palette.currentText():
             case "Quality": # Quality
+                colors=Palette_Quality
                 for _, row in self.df.iterrows():
                     i = row['current_position'] - 1 
                     button = self.chip_bottons[i]                
                     button.setStyleSheet(f'background-color: {Palette_Quality[row['quality']]}')
                     legend[row['quality']]=Palette_Quality[row['quality']]
             case "Entry Type":
+                colors=Palette_Entry
                 for _, row in self.df.iterrows():
                     i = row['current_position'] - 1 
                     button = self.chip_bottons[i]
                     button.setStyleSheet(f'background-color: {Palette_Entry[row['entry_type']]}')
                     legend[row['entry_type']]=Palette_Entry[row['entry_type']]
             case "Pass/Fail":
+                colors=Palette_PF
                 for _, row in self.df.iterrows():
                     i = row['current_position'] - 1 
                     button = self.chip_bottons[i]
@@ -351,15 +351,15 @@ class DBWindow(QWidget):
                     legend[j]=Palette_PF[j]        
         # legend            
         self.clear_layout(self.legend_panel)
-        for key in sorted(legend.keys()):
-            color = legend[key]
-            _ = QHBoxLayout()
-            square = QPushButton()
-            square.setFixedSize(50,50)
-            square.setStyleSheet(f"background-color: {color}")
-            _.addWidget(square)
-            _.addWidget(QLabel(f"{key}"))
-            self.legend_panel.addLayout(_)
+        for key,color in colors.items():
+            if key in legend:
+                _ = QHBoxLayout()
+                square = QPushButton()
+                square.setFixedSize(50,50)
+                square.setStyleSheet(f"background-color: {color}")
+                _.addWidget(square)
+                _.addWidget(QLabel(f"{key}"))
+                self.legend_panel.addLayout(_)
 
     def open_loc_file_dialog(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
