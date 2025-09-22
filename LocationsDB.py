@@ -216,15 +216,22 @@ class LocationsDatabase:
                     print(f'Chip {chip_id:07d} is already listed as having been shipped, skipping')
                     continue
                 if isECOND:
-                    if is_preseries:
-                        _grade=''
-                        _voltage_str=''
-                        _voltage_comment=''
-                    else:
-                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                    try:
+                        if is_preseries:
+                            _grade=''
+                            _voltage_str=''
+                            _voltage_comment=''
+                        else:
+                            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                            _grade = ECOND_grade_map[_quality]
+                            _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
+                            _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                    except:
+                        _quality = 0
+                        print(f'Chip {chip_id:07d} not found in grades db!!!!!')
                         _grade = ECOND_grade_map[_quality]
-                        _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
-                        _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                        _voltage_str = ''
+                        _voltage_comment = 'Possibly untested chip'
                 else:
                     try:
                         _quality = grade_db.getChip(chip_id).quality.iloc[-1]
