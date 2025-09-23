@@ -195,6 +195,8 @@ class DBWindow(QWidget):
         Vseparator.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(Vseparator)
 
+        # Middel panel
+        middle_panel = QVBoxLayout()
         # Chip panel
         chip_panel = QGridLayout()
         self.chip_bottons=[QPushButton(f"{i+1}\nNo Chip") for i in range(90)]
@@ -205,7 +207,12 @@ class DBWindow(QWidget):
                 self.chip_bottons[i*6+j].setFixedSize(50, 50)
                 self.chip_bottons[i*6+j].setEnabled(False)
                 chip_panel.addWidget(self.chip_bottons[i*6+j],i,j)
-        layout.addLayout(chip_panel)
+        middle_panel.addLayout(chip_panel)
+        self.barcode_display = QLabel("BARCODE")
+        self.barcode_display.setStyleSheet("font-weight: bold")
+        self.barcode_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        middle_panel.addWidget(self.barcode_display)
+        layout.addLayout(middle_panel)
 
         # Right panel
         right_panel = QVBoxLayout()
@@ -283,6 +290,7 @@ class DBWindow(QWidget):
             self.df = pd.DataFrame()
         self.validate_options()
         self.update_table(self.tray_table,self.df)
+        self.barcode_display.setText(f"BARCODE: {barcode}")
         for button in self.chip_bottons:
             button.setChecked(False)
         self.update_pick_buttons()
@@ -321,6 +329,7 @@ class DBWindow(QWidget):
             button.setText(f"{row['current_position']}\n{row['chip_id']}\n{row['quality']}")
         # Coloring
         legend=dict()
+        colors=dict()
         match self.palette.currentText():
             case "Quality": # Quality
                 colors=Palette_Quality
@@ -409,6 +418,8 @@ class DBWindow(QWidget):
 
         if self.df_picked.empty:
             change_disable_reason+="No chips to change. "
+        elif not (self.df_picked['location']=='WH14').all():
+            change_disable_reason+="Picking chips not at Fermilab" 
         if not change_disable_reason:
             self.change_button.setEnabled(True)
             self.change_disable_label.setText("")
@@ -516,8 +527,12 @@ class RejectSummaryAndConfirmDialog(QDialog):
         if len(self.df_picked) >= 2:
             self.destination_tray_all = QLineEdit(self)
             self.destination_tray_all.setValidator(tray_contraint)
-            self.destination_tray_all.textChanged.connect(self.change_all_tray)
+            self.destination_tray_all.textChanged.connect(self.fill_all)
+            self.destination_position_all = QLineEdit(self)
+            self.destination_position_all.setValidator(position_contraint)
+            self.destination_position_all.textChanged.connect(self.fill_all)
             chip_layout.addWidget(self.destination_tray_all,1,4)
+            chip_layout.addWidget(self.destination_position_all,1,5)
             for i,(_, row) in enumerate(self.df_picked.iterrows()):
                 chip_layout.addWidget(QLabel(f"{row['chip_id']}"),i+2,0)
                 chip_layout.addWidget(QLabel(f"{row['current_position']}"),i+2,1)
@@ -570,10 +585,25 @@ class RejectSummaryAndConfirmDialog(QDialog):
         else:
             self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
             self.accept_disable_label.setText("")
-        pass
-    def change_all_tray(self):
-        for tray in self.destination_trays:
-            tray.setText(self.destination_tray_all.text())
+
+    def fill_all(self):
+        fill_tray = self.destination_tray_all.text().isdigit() and 1<=int(self.destination_tray_all.text())<=99999
+        fill_position = self.destination_position_all.text().isdigit() and 1<=int(self.destination_position_all.text())<=90
+        tray_ = int(self.destination_tray_all.text()) if fill_tray else 0
+        position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90 
+        if fill_tray and fill_position:
+            for tray,position in zip(self.destination_trays,self.destination_positions):
+                tray.setText(f'{tray_ + (position_ // 90)}')
+                position.setText(f'{(position_ % 90) + 1}')
+                position_+=1
+        elif fill_position:
+            for position in self.destination_positions:
+                position.setText(f'{(position_ % 90) + 1}')
+                position_+=1
+        elif fill_tray:
+            for tray in self.destination_trays:
+                tray.setText(f'{tray_}')
+
     def accept(self):
         #override the accept
         question=f'The following chip(s) will be set to REJECT:\n'
@@ -630,8 +660,12 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         if len(self.df_picked) >= 2:
             self.destination_tray_all = QLineEdit(self)
             self.destination_tray_all.setValidator(tray_contraint)
-            self.destination_tray_all.textChanged.connect(self.change_all_tray)
+            self.destination_tray_all.textChanged.connect(self.fill_all)
+            self.destination_position_all = QLineEdit(self)
+            self.destination_position_all.setValidator(position_contraint)
+            self.destination_position_all.textChanged.connect(self.fill_all)
             chip_layout.addWidget(self.destination_tray_all,1,4)
+            chip_layout.addWidget(self.destination_position_all,1,5)
             for i,(_, row) in enumerate(self.df_picked.iterrows()):
                 chip_layout.addWidget(QLabel(f"{row['chip_id']}"),i+2,0)
                 chip_layout.addWidget(QLabel(f"{row['current_position']}"),i+2,1)
@@ -682,13 +716,28 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         else:
             self.button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
             self.accept_disable_label.setText("")
-        pass
-    def change_all_tray(self):
-        for tray in self.destination_trays:
-            tray.setText(self.destination_tray_all.text())
+
+    def fill_all(self):
+        fill_tray = self.destination_tray_all.text().isdigit() and 1<=int(self.destination_tray_all.text())<=99999
+        fill_position = self.destination_position_all.text().isdigit() and 1<=int(self.destination_position_all.text())<=90
+        tray_ = int(self.destination_tray_all.text()) if fill_tray else 0
+        position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90 
+        if fill_tray and fill_position:
+            for tray,position in zip(self.destination_trays,self.destination_positions):
+                tray.setText(f'{tray_ + (position_ // 90)}')
+                position.setText(f'{(position_ % 90) + 1}')
+                position_+=1
+        elif fill_position:
+            for position in self.destination_positions:
+                position.setText(f'{(position_ % 90) + 1}')
+                position_+=1
+        elif fill_tray:
+            for tray in self.destination_trays:
+                tray.setText(f'{tray_}')
+                
     def accept(self):
         #override the accept
-        question=f'The following chip(s) will be put into new location:\n'
+        question=f'The following chip(s) will be put into new location(s):\n'
         for i,(_, row) in enumerate(self.df_picked.iterrows()):
             question+=f'chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n'
         question+=f'{"comment: "+self.comment.text() if self.comment.text() else "with no comment"}\n\nDo you want to proceed?'
