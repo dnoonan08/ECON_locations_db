@@ -187,7 +187,7 @@ class ShipmentWindow(QWidget):
                     if(self.grade_db.getChip(chip.chip_id).empty):
                         qualities.append("Not Tested")
                     else:
-                        qualities.append(ECOND_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
+                        qualities.append(ECONT_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
                 ECONT_qualities+=qualities
         counted_ECOND_qualities = sorted(Counter(ECOND_qualities).items(), reverse=True)
         counted_ECONT_qualities = sorted(Counter(ECONT_qualities).items(), reverse=True)
