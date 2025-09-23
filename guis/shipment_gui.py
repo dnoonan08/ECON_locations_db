@@ -238,7 +238,9 @@ class ShipmentWindow(QWidget):
                 "Error",
                 f"Error when checking tray {barcode} in locations database:\n{e}")
                 return
-
+            if not tray_exists:
+                warning_dialog += f"{barcode}, "
+                continue
             if not ignore_not_tested and "Not Tested" in qualities:
                 if skip_not_tested:
                     continue
@@ -276,10 +278,7 @@ class ShipmentWindow(QWidget):
                 elif reply == QMessageBox.StandardButton.NoToAll:
                     skip_different_grades=True
                     continue
-            if tray_exists:
-                self.tray_list.add(barcode)
-            else:
-                warning_dialog += f"{barcode}, "
+            self.tray_list.add(barcode)
         if warning_dialog:
             warning_dialog = warning_dialog[:-2]  # Remove trailing comma and space
             QMessageBox.warning(self,
