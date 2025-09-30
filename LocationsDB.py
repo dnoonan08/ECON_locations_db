@@ -32,7 +32,9 @@ qualToVoltage = {10:0.99,
                  5:1.14,
                  4:1.20,
                  3:1.26,
-                 2:1.32}
+                 2:1.32,
+                 1:-1,
+                 0:-1}
 
 ECONT_grade_map = {1:'A',
                    0:'X'}
@@ -66,7 +68,7 @@ class LocationsDatabase:
 
     def checkTrayExists(self,tray_number,tableName='locations'):
         """Does a chip with this id already exist in the database"""
-        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE initial_tray = ?", (tray_number,))
+        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE initial_tray = ? OR current_tray = ?", (tray_number,tray_number,))
         result = self.cursor.fetchone()
         return result is not None
 
@@ -153,6 +155,16 @@ class LocationsDatabase:
         data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),"","")
         self.cursor.execute(sql_cmd_insert,data)
 
+    def setChipLocation(self, chip_id, entry_type, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):
+        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        data = (chip_id,entry_type,int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
+        self.cursor.execute(sql_cmd_insert,data)
+
     def setChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
         sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
@@ -214,15 +226,22 @@ class LocationsDatabase:
                     print(f'Chip {chip_id:07d} is already listed as having been shipped, skipping')
                     continue
                 if isECOND:
-                    if is_preseries:
-                        _grade=''
-                        _voltage_str=''
-                        _voltage_comment=''
-                    else:
-                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                    try:
+                        if is_preseries:
+                            _grade=''
+                            _voltage_str=''
+                            _voltage_comment=''
+                        else:
+                            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                            _grade = ECOND_grade_map[_quality]
+                            _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
+                            _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                    except:
+                        _quality = 0
+                        print(f'Chip {chip_id:07d} not found in grades db!!!!!')
                         _grade = ECOND_grade_map[_quality]
-                        _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
-                        _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                        _voltage_str = ''
+                        _voltage_comment = 'Possibly untested chip'
                 else:
                     try:
                         _quality = grade_db.getChip(chip_id).quality.iloc[-1]
