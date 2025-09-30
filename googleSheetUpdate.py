@@ -93,7 +93,8 @@ d_D = d_D[['Truth 0.99',
            'isSorted']]
 d_T = d_T[['Pass', 'Fail', 'NoTest', 'Preseries', 'Total', 'Location', 'isSorted']]
 
-
+d_D['Reject'] = d_D.index>=19000
+d_T['Reject'] = d_T.index>=9000
 
 
 import gspread
@@ -106,16 +107,18 @@ econt = sh.get_worksheet(2)
 econd_timeseries = sh.get_worksheet(3)
 econt_timeseries = sh.get_worksheet(4)
 
-n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted)].sum().values[:11].astype(int).tolist()
-n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted)].sum().values[:11].astype(int).tolist()
-n_D_shipped = d_D[(d_D.Location!='WH14')].sum().values[:11].astype(int).tolist()
+n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted) & ~d_D.Reject].sum().values[:11].astype(int).tolist()
+n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted) & ~d_D.Reject].sum().values[:11].astype(int).tolist()
+n_D_shipped = d_D[(d_D.Location!='WH14') & ~d_D.Reject].sum().values[:11].astype(int).tolist()
+n_D_reject = d_D[(d_D.Reject)].sum().values[:11].astype(int).tolist()
 
-n_T_sorted = d_T[(d_T.Location=='WH14') & (d_T.isSorted)].sum().values[:5].astype(int).tolist()
-n_T_unsorted = d_T[(d_T.Location=='WH14') & (~d_T.isSorted)].sum().values[:5].astype(int).tolist()
-n_T_shipped = d_T[(d_T.Location!='WH14')].sum().values[:5].astype(int).tolist()
+n_T_sorted = d_T[(d_T.Location=='WH14') & (d_T.isSorted) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
+n_T_unsorted = d_T[(d_T.Location=='WH14') & (~d_T.isSorted) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
+n_T_shipped = d_T[(d_T.Location!='WH14') & ~d_T.Reject].sum().values[:5].astype(int).tolist()
+n_T_reject = d_T[(d_T.Reject)].sum().values[:5].astype(int).tolist()
 
-availability.update([n_D_sorted,n_D_unsorted,n_D_shipped],'B5')
-availability.update([n_T_sorted,n_T_unsorted,n_T_shipped],'B12')
+availability.update([n_D_sorted,n_D_unsorted,n_D_shipped, n_D_reject],'B5')
+availability.update([n_T_sorted,n_T_unsorted,n_T_shipped, n_T_reject],'B13')
 availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 
 econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
