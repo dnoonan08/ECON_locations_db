@@ -330,34 +330,34 @@ class DBWindow(QWidget):
         # Coloring
         legend=dict()
         colors=dict()
-        match self.palette.currentText():
-            case "Quality": # Quality
-                colors=Palette_Quality
-                for _, row in self.df.iterrows():
-                    i = row['current_position'] - 1 
-                    button = self.chip_bottons[i]                
-                    button.setStyleSheet(f'background-color: {Palette_Quality[row['quality']]}')
-                    legend[row['quality']]=Palette_Quality[row['quality']]
-            case "Entry Type":
-                colors=Palette_Entry
-                for _, row in self.df.iterrows():
-                    i = row['current_position'] - 1 
-                    button = self.chip_bottons[i]
-                    button.setStyleSheet(f'background-color: {Palette_Entry[row['entry_type']]}')
-                    legend[row['entry_type']]=Palette_Entry[row['entry_type']]
-            case "Pass/Fail":
-                colors=Palette_PF
-                for _, row in self.df.iterrows():
-                    i = row['current_position'] - 1 
-                    button = self.chip_bottons[i]
-                    if row['quality']=='Not Tested':
-                        j = 'Not Tested'
-                    elif  row['quality']=='X':
-                        j = 'Fail'
-                    else:
-                        j = 'Pass'
-                    button.setStyleSheet(f'background-color: {Palette_PF[j]}')
-                    legend[j]=Palette_PF[j]        
+
+        if self.palette.currentText() == "Quality": # Quality
+            colors=Palette_Quality
+            for _, row in self.df.iterrows():
+                i = row['current_position'] - 1 
+                button = self.chip_bottons[i]                
+                button.setStyleSheet(f'background-color: {Palette_Quality[row["quality"]]}')
+                legend[row['quality']]=Palette_Quality[row['quality']]
+        if self.palette.currentText() == "Entry Type":
+            colors=Palette_Entry
+            for _, row in self.df.iterrows():
+                i = row['current_position'] - 1 
+                button = self.chip_bottons[i]
+                button.setStyleSheet(f'background-color: {Palette_Entry[row["entry_type"]]}')
+                legend[row['entry_type']]=Palette_Entry[row['entry_type']]
+        if self.palette.currentText() == "Pass/Fail":
+            colors=Palette_PF
+            for _, row in self.df.iterrows():
+                i = row['current_position'] - 1 
+                button = self.chip_bottons[i]
+                if row['quality']=='Not Tested':
+                    j = 'Not Tested'
+                elif  row['quality']=='X':
+                    j = 'Fail'
+                else:
+                    j = 'Pass'
+                button.setStyleSheet(f'background-color: {Palette_PF[j]}')
+                legend[j]=Palette_PF[j]        
         # legend            
         self.clear_layout(self.legend_panel)
         for key,color in colors.items():
@@ -449,31 +449,28 @@ class DBWindow(QWidget):
 
     def update_options(self):
         self.options.clear()
-        match self.operations.currentText():
-            case "Change Status":
-                self.options.addItems(['CHECKIN','TESTED','SORTED','SHIPPED','REJECTED'])
-                self.options.setCurrentText('REJECTED')
-            case "Change Grade":
-                self.options.addItems(['A','B','D','F','H','K','Q','W','Y','X','NotTested'])
-                self.options.setCurrentText('X')
+        if self.operations.currentText() == "Change Status":
+            self.options.addItems(['CHECKIN','TESTED','SORTED','SHIPPED','REJECTED'])
+            self.options.setCurrentText('REJECTED')
+        if self.operations.currentText() == "Change Grade":
+            self.options.addItems(['A','B','D','F','H','K','Q','W','Y','X','NotTested'])
+            self.options.setCurrentText('X')
 
     def change(self):
-        match self.operations.currentText():
-            case "Change Status":
-                self.change_status()
-            case "Change Grade":
-                self.change_grade()
-            case "Change Location":
-                self.change_location()
+        if self.operations.currentText() == "Change Status":
+            self.change_status()
+        if self.operations.currentText() == "Change Grade":
+            self.change_grade()
+        if self.operations.currentText() == "Change Location":
+            self.change_location()
     
     def change_status(self):
-        match self.options.currentText():
-            case "REJECTED":
-                reject_diaglog = RejectSummaryAndConfirmDialog(self.df_picked,self.locations_db)
-                if(reject_diaglog.exec()):
-                    self.select_tray()
-            case _:
-                QMessageBox.warning(self,"Under Construction","Status except REJECTED is under construction")
+        if self.options.currentText() == "REJECTED":
+            reject_diaglog = RejectSummaryAndConfirmDialog(self.df_picked,self.locations_db)
+            if(reject_diaglog.exec()):
+                self.select_tray()
+        if self.options.currentText() == _:
+            QMessageBox.warning(self,"Under Construction","Status except REJECTED is under construction")
 
     def change_grade(self):
         QMessageBox.warning(self,"Under Construction","Change Grade is under construction")
@@ -608,7 +605,7 @@ class RejectSummaryAndConfirmDialog(QDialog):
         #override the accept
         question=f'The following chip(s) will be set to REJECT:\n'
         for i,(_, row) in enumerate(self.df_picked.iterrows()):
-            question+=f'chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n'
+            question+=f"chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n"
         question+=f'{"comment: "+self.comment.text() if self.comment.text() else "with no comment"}\n\nDo you want to proceed?'
         reply = QMessageBox.question(self,
                 'Confirmation',
@@ -734,12 +731,12 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         elif fill_tray:
             for tray in self.destination_trays:
                 tray.setText(f'{tray_}')
-                
+
     def accept(self):
         #override the accept
         question=f'The following chip(s) will be put into new location(s):\n'
         for i,(_, row) in enumerate(self.df_picked.iterrows()):
-            question+=f'chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n'
+            question+=f"chip: {row['chip_id']:7},position: {row['current_position']:2},quality:{row['quality']} To tray: {self.destination_trays[i].text():5}, position: {self.destination_positions[i].text():2}\n"
         question+=f'{"comment: "+self.comment.text() if self.comment.text() else "with no comment"}\n\nDo you want to proceed?'
         reply = QMessageBox.question(self,
                 'Confirmation',
