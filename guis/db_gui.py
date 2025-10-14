@@ -23,8 +23,8 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QDialog
 )
-from PyQt6.QtGui import QIntValidator,QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIntValidator,QRegularExpressionValidator,QColor
+from PyQt6.QtCore import Qt,QRegularExpression
 import os
 import pandas as pd
 from collections import Counter
@@ -33,6 +33,8 @@ import sys
 sys.path.append('.')
 from LocationsDB import LocationsDatabase,ECOND_grade_map,ECONT_grade_map
 from GradesDB import GradesDatabase
+
+RegexTray = QRegularExpression(r'^(ECOND-1\d{4}|ECONT-0\d{4})$')
 
 # definition for color palletes to do a dynamic assignment for quality color map
 Fail_Color = '#ff0000' # Reserve red for fail
@@ -566,8 +568,8 @@ class RejectSummaryAndConfirmDialog(QDialog):
         self.destination_trays=[QLineEdit(self) for i in range(len(df_picked_))]
         self.destination_positions=[QLineEdit(self) for i in range(len(df_picked_))]
 
-        tray_contraint = QIntValidator()
-        tray_contraint.setRange(1, 99999)
+        tray_contraint = QRegularExpressionValidator()
+        tray_contraint.setRegularExpression(RegexTray) # ECOND-1xxxx or ECONT-0xxxx
         position_contraint = QIntValidator()
         position_contraint.setRange(1, 90)
 
@@ -620,8 +622,8 @@ class RejectSummaryAndConfirmDialog(QDialog):
         self.setLayout(layout)
     def validate_options(self):
         accept_disable_reason = ""
-        tray_valid = all([tray.text().isdigit() and 1<=int(tray.text())<=99999 for tray in self.destination_trays])
-        position_valid = all([pos.text().isdigit() and 1 <= int(pos.text()) <= 90 for pos in self.destination_positions])
+        tray_valid = all([tray.hasAcceptableInput() for tray in self.destination_trays])
+        position_valid = all([pos.hasAcceptableInput() for pos in self.destination_positions])
         if not tray_valid:
             accept_disable_reason+="Tray number(s) invalid. "
         if not position_valid:
@@ -634,13 +636,15 @@ class RejectSummaryAndConfirmDialog(QDialog):
             self.accept_disable_label.setText("")
 
     def fill_all(self):
-        fill_tray = self.destination_tray_all.text().isdigit() and 1<=int(self.destination_tray_all.text())<=99999
-        fill_position = self.destination_position_all.text().isdigit() and 1<=int(self.destination_position_all.text())<=90
-        tray_ = int(self.destination_tray_all.text()) if fill_tray else 0
+        fill_tray = self.destination_tray_all.hasAcceptableInput()
+        fill_position = self.destination_position_all.hasAcceptableInput()
+        if fill_tray:
+            ECON_ = self.destination_tray_all.text().split('-')[0]
+            tray_ = int(self.destination_tray_all.text().split('-')[-1])
         position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90 
         if fill_tray and fill_position:
             for tray,position in zip(self.destination_trays,self.destination_positions):
-                tray.setText(f'{tray_ + (position_ // 90)}')
+                tray.setText(f'{ECON_}-{tray_ + (position_ // 90)}')
                 position.setText(f'{(position_ % 90) + 1}')
                 position_+=1
         elif fill_position:
@@ -649,7 +653,7 @@ class RejectSummaryAndConfirmDialog(QDialog):
                 position_+=1
         elif fill_tray:
             for tray in self.destination_trays:
-                tray.setText(f'{tray_}')
+                tray.setText(f'{ECON_}-{tray_}')
 
     def accept(self):
         #override the accept
@@ -699,8 +703,8 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         self.destination_trays=[QLineEdit(self) for i in range(len(df_picked_))]
         self.destination_positions=[QLineEdit(self) for i in range(len(df_picked_))]
 
-        tray_contraint = QIntValidator()
-        tray_contraint.setRange(1, 99999)
+        tray_contraint = QRegularExpressionValidator()
+        tray_contraint.setRegularExpression(RegexTray) # ECOND-1xxxx or ECONT-0xxxx
         position_contraint = QIntValidator()
         position_contraint.setRange(1, 90)
 
@@ -751,8 +755,8 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         self.setLayout(layout)
     def validate_options(self):
         accept_disable_reason = ""
-        tray_valid = all([tray.text().isdigit() and 1<=int(tray.text())<=99999 for tray in self.destination_trays])
-        position_valid = all([pos.text().isdigit() and 1 <= int(pos.text()) <= 90 for pos in self.destination_positions])
+        tray_valid = all([tray.hasAcceptableInput() for tray in self.destination_trays])
+        position_valid = all([pos.hasAcceptableInput() for pos in self.destination_positions])
         if not tray_valid:
             accept_disable_reason+="Tray number(s) invalid. "
         if not position_valid:
@@ -765,13 +769,15 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
             self.accept_disable_label.setText("")
 
     def fill_all(self):
-        fill_tray = self.destination_tray_all.text().isdigit() and 1<=int(self.destination_tray_all.text())<=99999
-        fill_position = self.destination_position_all.text().isdigit() and 1<=int(self.destination_position_all.text())<=90
-        tray_ = int(self.destination_tray_all.text()) if fill_tray else 0
+        fill_tray = self.destination_tray_all.hasAcceptableInput()
+        fill_position = self.destination_position_all.hasAcceptableInput()
+        if fill_tray:
+            ECON_ = self.destination_tray_all.text().split('-')[0]
+            tray_ = int(self.destination_tray_all.text().split('-')[-1])
         position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90 
         if fill_tray and fill_position:
             for tray,position in zip(self.destination_trays,self.destination_positions):
-                tray.setText(f'{tray_ + (position_ // 90)}')
+                tray.setText(f'{ECON_}-{tray_ + (position_ // 90)}')
                 position.setText(f'{(position_ % 90) + 1}')
                 position_+=1
         elif fill_position:
@@ -780,7 +786,7 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
                 position_+=1
         elif fill_tray:
             for tray in self.destination_trays:
-                tray.setText(f'{tray_}')
+                tray.setText(f'{ECON_}-{tray_}')
 
     def accept(self):
         #override the accept
