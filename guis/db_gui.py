@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, 
     QTableWidgetItem,
     QFileDialog, 
+    QColorDialog,
     QListWidget, 
     QMessageBox,
     QFrame,
@@ -22,7 +23,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QDialog
 )
-from PyQt6.QtGui import QIntValidator
+from PyQt6.QtGui import QIntValidator,QColor
 from PyQt6.QtCore import Qt
 import os
 import pandas as pd
@@ -33,49 +34,65 @@ sys.path.append('.')
 from LocationsDB import LocationsDatabase,ECOND_grade_map,ECONT_grade_map
 from GradesDB import GradesDatabase
 
-Palette_Quality={
-    'A':    '#00ff00',
-    'B':    '#00ff00', 
-    'D':    '#041a00', 
-    'F':    '#202e00', 
-    'H':    '#4b6200', 
-    'K':    '#808000',
-    'Q':    '#b9d900',
-    'W':    '#f0f800',
-    'Y':    '#f87e00',
-    'X':    '#ff0000',
-    'Not Tested':   '#555555'
+# definition for color palletes to do a dynamic assignment for quality color map
+Fail_Color = '#ff0000' # Reserve red for fail
+Not_Tested_Color = '#555555' #Reserve grey for not tested
+Color_Palletes=[
+    [],
+    ['#00ff00'],# green
+    ['#00ff00',             '#0055ff'], # + blue
+    ['#00ff00',             '#0055ff',              '#800080'], # + purple
+    ['#00ff00',             '#0055ff',              '#800080',              '#ff7700'], # + orange
+    ['#00ff00', '#90ee90',  '#0055ff',              '#800080',              '#ff7700'], # + dark green
+    ['#00ff00', '#90ee90',  '#0055ff',  '#2f4f2f',  '#800080',              '#ff7700'], # + navy blue
+    ['#00ff00', '#90ee90',  '#0055ff',  '#2f4f2f',  '#800080',  '#ee82ee',  '#ff7700'], # + violet
+    ['#00ff00', '#90ee90',  '#0055ff',  '#2f4f2f',  '#800080',  '#ee82ee',  '#ff7700',  '#ffff00'] # + yellow
+]
+
+Quality_Label_Map={
+    'A': 'A: Pass',
+    'B': 'B: 0.99V',
+    'D': 'D: 1.01V',
+    'F': 'F: 1.03V',
+    'H': 'H: 1.05V',
+    'K': 'K: 1.08V',
+    'Q': 'Q: 1.14V',
+    'W': 'W: 1.20V',
+    'Y': 'Y: 1.32V',
+    'X': 'X: Failed',
+    'Not Tested':'Not tested'
 }
 
 Palette_Entry={
-    'CHECKIN': '#555555',
-    'TESTED': '#008080',
-    'SORTED': '#77dd77',
-    'SHIPPED': '#00ff00',
-    'REJECTED': '#ff0000',
+    'CHECKIN': ('#555555','Checked in'),
+    'TESTED': ('#008080','Tested'),
+    'SORTED': ('#77dd77','Sorted'),
+    'SHIPPED': ('#00ff00','Shipped'),
+    'REJECTED': ('#ff0000','Rejected'),
 }
 
 Palette_PF={
-    'Pass':  '#00ff00',
-    'Fail':  '#ff0000',
-    'Not Tested': '#555555',
+    'Pass':  ('#00ff00','Pass'),
+    'Fail':  ('#ff0000','Failed'),
+    'Not Tested': ('#555555','Not tested'),
 }
 # Main window
 class DBWindow(QWidget):
     def __init__(self):
+        # Variables
+        self.locations_db = None
+        self.grade_db = None
+        self.df = pd.DataFrame()
+        self.df_picked = pd.DataFrame()
+        self.color_map={} # color map defined to as 'label:(color,label text)', e.g. {'X':('#ff0000','X: Failed')}
+        self.color_label=[None]*90 # label of the selected chips for coloring
+        self.color_buttons=[]
         super().__init__()
         self.setWindowTitle("Database Management")
         self.setGeometry(150, 150, 1500, 800)
         layout = QHBoxLayout()
 
         left_panel = QVBoxLayout()
-
-        self.df = pd.DataFrame()
-        self.df_picked = pd.DataFrame()
-        self.parameters = []
-        # Variables
-        self.locations_db = None
-        self.grade_db = None
 
         # Data base initialization
         # Locations DB
@@ -217,6 +234,9 @@ class DBWindow(QWidget):
         # Right panel
         right_panel = QVBoxLayout()
         right_panel.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.screenshot_button = QPushButton("Screenshot", self)
+        self.screenshot_button.clicked.connect(self.save_screenshot)
+        right_panel.addWidget(self.screenshot_button)
         # Palette control panel
         palette_panel_control = QHBoxLayout()
         palette_panel_control.addWidget(QLabel('Color by:'))
@@ -282,6 +302,11 @@ class DBWindow(QWidget):
                 else:
                     qualities.append(ECONT_grade_map[chip_grade.quality.iloc[-1]])
             self.df['quality']=qualities
+            self.update_table(self.tray_table,self.df)
+            self.barcode_display.setText(f"BARCODE: {barcode}")
+            for button in self.chip_bottons:
+                button.setChecked(False)
+            self.update_pick_buttons()
         else:
             warning_dialog = warning_dialog[:-2]  # Remove trailing comma and space
             QMessageBox.warning(self,
@@ -289,11 +314,6 @@ class DBWindow(QWidget):
             f"The following tray(s) do not exist in the locations database:\n{barcode}")
             self.df = pd.DataFrame()
         self.validate_options()
-        self.update_table(self.tray_table,self.df)
-        self.barcode_display.setText(f"BARCODE: {barcode}")
-        for button in self.chip_bottons:
-            button.setChecked(False)
-        self.update_pick_buttons()
 
     def update_picked(self):
         chip_positions=[]
@@ -326,27 +346,35 @@ class DBWindow(QWidget):
             i = row['current_position'] - 1 
             button = self.chip_bottons[i]
             button.setEnabled(True)
-            button.setText(f"{row['current_position']}\n{row['chip_id']}\n{row['quality']}")
+            button.setText(f"{row['current_position']}\n{row['chip_id']}\n{Quality_Label_Map[row['quality']]}")
         # Coloring
-        legend=dict()
-        colors=dict()
+        self.color_map={} # color map defined to as 'label:(color,label text)', e.g. {'X':('#ff0000','X: Failed')}
+        self.color_label=[None]*90 # label of the selected chips for coloring
 
         if self.palette.currentText() == "Quality": # Quality
-            colors=Palette_Quality
             for _, row in self.df.iterrows():
                 i = row['current_position'] - 1 
-                button = self.chip_bottons[i]                
-                button.setStyleSheet(f'background-color: {Palette_Quality[row["quality"]]}')
-                legend[row['quality']]=Palette_Quality[row['quality']]
-        if self.palette.currentText() == "Entry Type":
-            colors=Palette_Entry
+                self.color_label[i] = row["quality"]
+            n=0
+            Quality_color_index_map={}
+            for quality in Quality_Label_Map.keys():
+                if quality in self.df['quality'].values:
+                    Quality_color_index_map[quality]=n
+                    if not quality in ['X','Not Tested']:
+                        n+=1
+            for quality,index in Quality_color_index_map.items():
+                if quality == 'X':
+                    self.color_map[quality] = (Fail_Color, Quality_Label_Map[quality])
+                elif quality == 'Not Tested':
+                    self.color_map[quality] = (Not_Tested_Color, Quality_Label_Map[quality])
+                else:
+                    self.color_map[quality]=(Color_Palletes[n][index],Quality_Label_Map[quality])
+        elif self.palette.currentText() == "Entry Type":
             for _, row in self.df.iterrows():
                 i = row['current_position'] - 1 
-                button = self.chip_bottons[i]
-                button.setStyleSheet(f'background-color: {Palette_Entry[row["entry_type"]]}')
-                legend[row['entry_type']]=Palette_Entry[row['entry_type']]
-        if self.palette.currentText() == "Pass/Fail":
-            colors=Palette_PF
+                self.color_label[i] = row["entry_type"]
+            self.color_map={key:value for key,value in Palette_Entry.items() if key in self.color_label}
+        elif self.palette.currentText() == "Pass/Fail":
             for _, row in self.df.iterrows():
                 i = row['current_position'] - 1 
                 button = self.chip_bottons[i]
@@ -356,19 +384,41 @@ class DBWindow(QWidget):
                     j = 'Fail'
                 else:
                     j = 'Pass'
-                button.setStyleSheet(f'background-color: {Palette_PF[j]}')
-                legend[j]=Palette_PF[j]        
-        # legend            
+                self.color_label[i]=j
+            self.color_map={key:value for key,value in Palette_PF.items() if key in self.color_label}
+        self.update_colors()
+
+    def update_colors(self):
+        # Update button colors
+        for i in range(90):
+            if self.color_label[i] in self.color_map:
+                color, label = self.color_map[self.color_label[i]]
+                self.chip_bottons[i].setStyleSheet(f'background-color: {color}')
+            else:
+                self.chip_bottons[i].setStyleSheet('background-color: None')
+        # Update legend panel
+        self.color_buttons=[QPushButton() for i in range(len(self.color_map))]
+
         self.clear_layout(self.legend_panel)
-        for key,color in colors.items():
-            if key in legend:
-                _ = QHBoxLayout()
-                square = QPushButton()
-                square.setFixedSize(50,50)
-                square.setStyleSheet(f"background-color: {color}")
-                _.addWidget(square)
-                _.addWidget(QLabel(f"{key}"))
-                self.legend_panel.addLayout(_)
+        for i,(key, (color, label)) in enumerate(self.color_map.items()):
+            _ = QHBoxLayout()
+            self.color_buttons[i].setFixedSize(50,50)
+            self.color_buttons[i].setStyleSheet(f"background-color: {color}")
+            self.color_buttons[i].clicked.connect(lambda checked, k=key: self.open_color_dialog(k))
+            _.addWidget(self.color_buttons[i])
+            _.addWidget(QLabel(f"{label}"))
+            self.legend_panel.addLayout(_)
+
+    def save_screenshot(self):
+        # Save screenshot of the main window
+        pixmap = self.grab()
+        pixmap.save(f'./screen_{self.barcode.text().strip()}_{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', "PNG")
+
+    def open_color_dialog(self, key):
+        color = QColorDialog.getColor(initial=QColor(self.color_map[key][0]))
+        if color.isValid():
+            self.color_map[key] = (color.name(), self.color_map[key][1])
+            self.update_colors()
 
     def open_loc_file_dialog(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
