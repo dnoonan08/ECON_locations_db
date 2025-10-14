@@ -521,7 +521,7 @@ class DBWindow(QWidget):
             reject_diaglog = RejectSummaryAndConfirmDialog(self.df_picked,self.locations_db)
             if(reject_diaglog.exec()):
                 self.select_tray()
-        if self.options.currentText() == _:
+        else:
             QMessageBox.warning(self,"Under Construction","Status except REJECTED is under construction")
 
     def change_grade(self):
