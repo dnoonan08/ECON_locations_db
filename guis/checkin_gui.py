@@ -167,6 +167,10 @@ class ECONCheckinWidget(QWidget):
         layout.addLayout(db_layout)
 
 
+        self.error_label=  QLabel('')
+        self.error_label.setFixedHeight(0)
+        layout.addWidget(self.error_label)
+
         # Button
         self.checkin_button = QPushButton("Check In", self)
         self.checkin_button.clicked.connect(self.start_checkin)
@@ -208,30 +212,55 @@ class ECONCheckinWidget(QWidget):
 
         #check that barcode matches wafer types
         barcode_wafer_match = True
+        self.error_label.setText("")
+        _barcode = self.barcode_text.text()
         if 'N62A34' in self.wafer_lot.currentText():
             try:
                 barcode_number_group = int(self.barcode_text.text()[7:9])
+                print(barcode_number_group)
+                print(self.wafer_lot.currentText())
                 if barcode_number_group==60 and self.wafer_lot.currentText()!="N62A34 Wafs #2~3:5": #Std wafers
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #2~3:5'</font>")
                     barcode_wafer_match = False
-                if barcode_number_group==61 and self.wafer_lot.currentText()!="N62A34 Wafs #7~11": #5% FF Corner
+                elif barcode_number_group==61 and self.wafer_lot.currentText()!="N62A34 Wafs #7~11": #5% FF Corner
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #7~11'</font>")
                     barcode_wafer_match = False
-                if barcode_number_group==62 and self.wafer_lot.currentText()!="N62A34 Wafs #13~14": #10% FF Corner
+                elif barcode_number_group==62 and self.wafer_lot.currentText()!="N62A34 Wafs #13~14": #10% FF Corner
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #13~14'</font>")
                     barcode_wafer_match = False
-                if barcode_number_group==63 and self.wafer_lot.currentText()!="N62A34 Wafs #16": #15% FF Corner
+                elif barcode_number_group==63 and self.wafer_lot.currentText()!="N62A34 Wafs #16": #15% FF Corner
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #16'</font>")
                     barcode_wafer_match = False
-                if barcode_number_group==64 and self.wafer_lot.currentText()!="N62A34 Wafs #17~18": # Slow-Slow Corner
+                elif barcode_number_group==64 and self.wafer_lot.currentText()!="N62A34 Wafs #17~18": # Slow-Slow Corner
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #17~18'</font>")
                     barcode_wafer_match = False
-                if barcode_number_group==65 and self.wafer_lot.currentText()!="N62A34 Wafs #19": # FastP-SlowN Corner
+                elif barcode_number_group==65 and self.wafer_lot.currentText()!="N62A34 Wafs #19": # FastP-SlowN Corner
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #19'</font>")
                     barcode_wafer_match = False
-                if barcode_number_group==66 and self.wafer_lot.currentText()!="N62A34 Wafs #20": # SlowP-FastN Corner
+                elif barcode_number_group==66 and self.wafer_lot.currentText()!="N62A34 Wafs #20": # SlowP-FastN Corner
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N62A34 Wafs #20'</font>")
+                    barcode_wafer_match = False
+                elif barcode_number_group<60 or barcode_number_group>66:
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be between 6000 and 6699</font>")
+                    barcode_wafer_match = False
+            except:
+                #if no value in barcode, or it fails the integer casting
+                barcode_wafer_match = False
+        else:
+            try:
+                barcode_number_group = int(self.barcode_text.text()[7:9])
+                if barcode_number_group>=60:
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be barcode less than 6000</font>")
                     barcode_wafer_match = False
             except:
                 #if no value in barcode, or it fails the integer casting
                 barcode_wafer_match = False
 
         if pkg_date_valid and wafer_lot_valid and barcode_valid and locations_db_valid and barcode_wafer_match:
+            self.error_label.setFixedHeight(0)
             self.checkin_button.setEnabled(True)
         else:
+            self.error_label.setFixedHeight(20)
             self.checkin_button.setEnabled(False)
 
     def start_checkin(self):
