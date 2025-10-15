@@ -136,7 +136,6 @@ class ECONCheckinWidget(QWidget):
                                  "N62A34 Wafs #2~3:5",
                                  "N62A34 Wafs #7~11",
                                  "N62A34 Wafs #13~14",
-                                 "N62A34 Wafs #13~14",
                                  "N62A34 Wafs #16",
                                  "N62A34 Wafs #17~18",
                                  "N62A34 Wafs #19",
