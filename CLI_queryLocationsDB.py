@@ -8,6 +8,55 @@ from LocationsDB import LocationsDatabase
 import pandas as pd
 pd.set_option('display.max_rows', 100)
 
+def get_next_barcode(loc_db):
+    full_barcode_list = loc_db.loadLocationsDatabase().current_tray.unique().tolist()
+    full_barcode_list += loc_db.loadLocationsDatabase().initial_tray.unique().tolist()
+    full_barcode_list = np.unique(full_barcode_list)
+
+    ECONT_initial = full_barcode_list[full_barcode_list<6000].max() + 1
+    ECONT_corners = {}
+    for corner, start in [('Std', 0), ('5Pct', 100), ('10Pct', 200), ('15Pct', 300), ('SnSp', 400), ('SnFp', 500), ('FnSp', 600)]:
+        cut = (full_barcode_list>=(6000+start)) & (full_barcode_list<(6100+start))
+        if sum(cut)==0:
+            ECONT_corners[corner] = 6001+start
+        else:
+            ECONT_corners[corner] = full_barcode_list[cut].max() + 1
+    ECONT_sorting = full_barcode_list[(full_barcode_list<9000) & (full_barcode_list>=7000)].max() + 1
+    ECONT_reject = full_barcode_list[(full_barcode_list<10000) & (full_barcode_list>=9000)].max() + 1
+
+
+    ECOND_initial    = full_barcode_list[(full_barcode_list>=10000) & (full_barcode_list<16000)].max() + 1
+    ECOND_corners = {}
+    for corner, start in [('Std', 0), ('5Pct', 100), ('10Pct', 200), ('15Pct', 300), ('SnSp', 400), ('SnFp', 500), ('FnSp', 600)]:
+        cut = (full_barcode_list>=(16000+start)) & (full_barcode_list<(16100+start))
+        if sum(cut)==0:
+            ECOND_corners[corner] = 16001+start
+        else:
+            ECOND_corners[corner] = full_barcode_list[cut].max() + 1
+    ECOND_sorting = full_barcode_list[(full_barcode_list>=17000) & (full_barcode_list<19000)].max() + 1
+    ECOND_reject = full_barcode_list[(full_barcode_list>=19000) & (full_barcode_list<20000)].max() + 1
+
+    print("Next tray numbers to use:")
+
+    print(f"    ECON-T checkin: ECONT-{ECONT_initial:05d}")
+    print(f"           Std    : ECONT-{ECONT_corners['Std']:05d}")
+    print(f"           5Pct   : ECONT-{ECONT_corners['5Pct']:05d}")
+    print(f"           10Pct  : ECONT-{ECONT_corners['10Pct']:05d}")
+    print(f"           15Pct  : ECONT-{ECONT_corners['15Pct']:05d}")
+    print(f"           SnSp   : ECONT-{ECONT_corners['SnSp']:05d}")
+    print(f"           SnFp   : ECONT-{ECONT_corners['SnFp']:05d}")
+    print(f"           FnSp   : ECONT-{ECONT_corners['FnSp']:05d}")
+    print(f"           sorting: ECONT-{ECONT_sorting:05d}")
+    print(f"")
+    print(f"    ECON-D checkin: ECOND-{ECOND_initial:05d}")
+    print(f"           Std    : ECOND-{ECOND_corners['Std']:05d}")
+    print(f"           5Pct   : ECOND-{ECOND_corners['5Pct']:05d}")
+    print(f"           10Pct  : ECOND-{ECOND_corners['10Pct']:05d}")
+    print(f"           15Pct  : ECOND-{ECOND_corners['15Pct']:05d}")
+    print(f"           SnSp   : ECOND-{ECOND_corners['SnSp']:05d}")
+    print(f"           SnFp   : ECOND-{ECOND_corners['SnFp']:05d}")
+    print(f"           FnSp   : ECOND-{ECOND_corners['FnSp']:05d}")
+    print(f"           sorting: ECOND-{ECOND_sorting:05d}")
 
 @click.command()
 @click.option("--tray",default=0, show_default=True, help="Tray number to query")
@@ -23,21 +72,7 @@ def main(tray, chip, get_next_tray, location, history, status, sorting_tray_summ
     loc_db = LocationsDatabase(locations_db)
 
     if get_next_tray:
-        full_barcode_list = loc_db.loadLocationsDatabase().current_tray.unique().tolist()
-        full_barcode_list += loc_db.loadLocationsDatabase().initial_tray.unique().tolist()
-        full_barcode_list = np.unique(full_barcode_list)
-
-        ECONT_initial = full_barcode_list[full_barcode_list<7000].max() + 1
-        ECONT_sorting = full_barcode_list[(full_barcode_list<9000) & (full_barcode_list>=7000)].max() + 1
-        ECOND_initial = full_barcode_list[(full_barcode_list>=10000) & (full_barcode_list<17000)].max() + 1
-        ECOND_sorting = full_barcode_list[(full_barcode_list>=17000) & (full_barcode_list<19000)].max() + 1
-
-        print("Next tray numbers to use:")
-
-        print(f"    ECON-T checkin: ECONT-{ECONT_initial:05d}")
-        print(f"           sorting: ECONT-{ECONT_sorting:05d}")
-        print(f"    ECON-D checkin: ECOND-{ECOND_initial:05d}")
-        print(f"           sorting: ECOND-{ECOND_sorting:05d}")
+        get_next_barcode(loc_db)
 
     if history:
         if chip!=0:
