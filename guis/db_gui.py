@@ -668,6 +668,8 @@ class RejectSummaryAndConfirmDialog(QDialog):
         if reply == QMessageBox.StandardButton.Yes:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for i,(_, row) in enumerate(self.df_picked.iterrows()):
+                _destination_tray_text = self.destination_trays[i].text()
+                _destination_tray_int = int(_destination_tray_text[6:]) if _destination_tray_text.startswith('ECON') else int(_destination_tray_text)
                 self.locations_db.setChipGrade(
                     chip_id=row['chip_id'],
                     grade="Reject", 
@@ -677,7 +679,7 @@ class RejectSummaryAndConfirmDialog(QDialog):
                     chip_id=row['chip_id'],
                     start_tray=row['current_tray'],
                     start_position=row['current_position'],
-                    new_tray=int(self.destination_trays[i].text()),
+                    new_tray=_destination_tray_int,
                     new_position=int(self.destination_positions[i].text()),
                     comments=self.comment.text(),
                     timestamp=timestamp)
@@ -801,12 +803,14 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         if reply == QMessageBox.StandardButton.Yes:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for i,(_, row) in enumerate(self.df_picked.iterrows()):
+                _destination_tray_text = self.destination_trays[i].text()
+                _destination_tray_int = int(_destination_tray_text[6:]) if _destination_tray_text.startswith('ECON') else int(_destination_tray_text)
                 self.locations_db.setChipLocation(
                     chip_id=row['chip_id'],
                     entry_type=row['entry_type'],
                     start_tray=row['current_tray'],
                     start_position=row['current_position'],
-                    new_tray=int(self.destination_trays[i].text()),
+                    new_tray=_destination_tray_int,
                     new_position=int(self.destination_positions[i].text()),
                     comments=self.comment.text(),
                     timestamp=timestamp)
