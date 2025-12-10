@@ -231,7 +231,6 @@ class LocationsDatabase:
 
         if type(trays) is int:
             trays = [trays]
-
         for _tray_number in trays:
             print(_tray_number)
             chips = self.getChipsInTray(_tray_number)
@@ -318,12 +317,16 @@ class LocationsDatabase:
                     BATCH_NUMBER = f'{shipment_number:04d}-PS-{_tray_number:05d}'
                 BARCODE = _serial
                 NAME_LABEL = f'ECON-{T_D}{_voltage_str}-{chip_id:07d}'
-                LOCATION = "FNAL"
+                LOCATION = "FNAL Wilson Hall"
                 INSTITUTION = "Fermi National Accelerator Lab."
                 COMMENT_DESCRIPTION = f"ECON-{T_D} chip; FNAL chip ID {chip_id:07d} {_voltage_comment} {shipment_note}"
                 COMMENT_DESCRIPTION = COMMENT_DESCRIPTION.replace(',',';') #replace any accidental commas with semicolons to avoid issues with CSV
                 MANUFACTURER = "TSMC"
-                PRODUCTION_DATE = datetime.strptime(_pkg_date + '-1', "%Y/%W-%w").strftime("%Y-%m-%d") #converts package week to date
+                #some package dates are stored as Year/Week, others are Week/Year, try botch
+                try:
+                    PRODUCTION_DATE = datetime.strptime(_pkg_date + '-1', "%Y/%W-%w").strftime("%Y-%m-%d") #converts package week to date when in Year/Week format
+                except:
+                    PRODUCTION_DATE = datetime.strptime(_pkg_date + '-1', "%W/%Y-%w").strftime("%Y-%m-%d") #converts package week to date when in Week/Year format
                 _csvFile.write(f'{KIND_OF_PART},{SERIAL_NUMBER},{BATCH_NUMBER},{BARCODE},{NAME_LABEL},{LOCATION},{INSTITUTION},{COMMENT_DESCRIPTION},{MANUFACTURER},{PRODUCTION_DATE}\n')
         _csvFile.close()
 
