@@ -9,6 +9,14 @@ production_lot_map = {'N61.H30.00':'A',
                       'N61.H52.00':'B',
                       'P1':'C',
                       'P1v2':'D',
+                      "NCTA61 Wafs All":'E',
+                      "N62A34 Wafs #2~3:5":'F',
+                      "N62A34 Wafs #7~11":'G',
+                      "N62A34 Wafs #13~14":'H',
+                      "N62A34 Wafs #16":'I',
+                      "N62A34 Wafs #17~18":'J',
+                      "N62A34 Wafs #19":'K',
+                      "N62A34 Wafs #20":'L',
 }
 
 ECOND_grade_map = {15:'A', #0.89
