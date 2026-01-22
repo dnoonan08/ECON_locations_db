@@ -292,6 +292,44 @@ class LocationsDatabase:
                 df.loc[chip_id,'serial_number'] = _serial
                 self.setChipSerialNumber(chip_id,_serial,"",timestamp)
 
+    def generateXCSForTray(self, tray):
+        if type(tray)==str:
+            if tray.startswith('ECON'):
+                tray_number = int(tray[6:])
+            else:
+                try:
+                    tray_number = int(tray)
+                except:
+                    print(f'Bad tray value: {tray}')
+                    return
+        else:
+            tray_number = tray
+
+        #get all chips in the tray and merge in the serial numbers
+        chips = self.getChipsInTray(tray_number).set_index('chip_id')
+        chip_status = self.getStatusForTray(tray_number).set_index('chip_id')
+        chips['serial_number'] = chip_status.loc[chips.index].serial_number
+
+        #check that all serial numbers exist
+        if (chips.serial_number=='').any():
+            print(f'Missing some serial numbers for chips {chips[chips.serial_number==""].index.tolist()}')
+            return
+
+        #reindex by the position
+        chips.set_index('current_position',inplace=True)
+
+        #get list of serial numbers, with None in places where there is no chip
+        serial_numbers = [chips.loc[i].serial_number  if i in chips.index else None for i in range(1,91)]
+
+        #generate XCS file that can be used in tool for marking
+        from chip_engraving_for_xtool_S1 import chip_layout, make_proj
+        import json
+
+        layout = chip_layout()
+
+        with open(f'XCS_files/whole_tray_{tray_number}.xcs', 'w') as outfile:
+            print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=400, y=100, angle=90))), file=outfile)
+
 
     def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
