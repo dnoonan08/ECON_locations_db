@@ -214,13 +214,7 @@ class LocationsDatabase:
         data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
 
-    def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
-
-        csvFileName = f'ECON_upload_{shipment_number:04d}.csv'
-        _csvFile = open(csvFileName,'w')
-        _csvFile.write('KIND_OF_PART,SERIAL_NUMBER,BATCH_NUMBER,BARCODE,NAME_LABEL,LOCATION,INSTITUTION,COMMENT_DESCRIPTION,MANUFACTURER,PRODUCTION_DATE\n')
+    def setTraySerialNumber(self, trays, grade_db, timestamp=None, is_preseries=False):
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -241,6 +235,9 @@ class LocationsDatabase:
                 chip_id = _chip.chip_id
                 if _chip.entry_type=='SHIPPED':
                     print(f'Chip {chip_id:07d} is already listed as having been shipped, skipping')
+                    continue
+                if not df.loc[chip_id].serial_number=="":
+                    print(f'Chip {chip_id:07d} already has a serial number assigned: {df.loc[chip_id].serial_number}')
                     continue
                 if isECOND:
                     try:
@@ -293,6 +290,115 @@ class LocationsDatabase:
 
                 #put this chip serial number into the dataframe
                 df.loc[chip_id,'serial_number'] = _serial
+                self.setChipSerialNumber(chip_id,_serial,"",timestamp)
+
+    def generateXCSForTray(self, tray):
+        if type(tray)==str:
+            if tray.startswith('ECON'):
+                tray_number = int(tray[6:])
+            else:
+                try:
+                    tray_number = int(tray)
+                except:
+                    print(f'Bad tray value: {tray}')
+                    return
+        else:
+            tray_number = tray
+
+        #get all chips in the tray and merge in the serial numbers
+        chips = self.getChipsInTray(tray_number).set_index('chip_id')
+        chip_status = self.getStatusForTray(tray_number).set_index('chip_id')
+        chips['serial_number'] = chip_status.loc[chips.index].serial_number
+
+        #check that all serial numbers exist
+        if (chips.serial_number=='').any():
+            print(f'Missing some serial numbers for chips {chips[chips.serial_number==""].index.tolist()}')
+            return
+
+        #reindex by the position
+        chips.set_index('current_position',inplace=True)
+
+        #get list of serial numbers, with None in places where there is no chip
+        serial_numbers = [chips.loc[i].serial_number  if i in chips.index else None for i in range(1,91)]
+
+        #generate XCS file that can be used in tool for marking
+        from chip_engraving_for_xtool_S1 import chip_layout, make_proj
+        import json
+
+        layout = chip_layout()
+
+        with open(f'XCS_files/whole_tray_{tray_number}.xcs', 'w') as outfile:
+            print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=400, y=100, angle=90))), file=outfile)
+
+
+    def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
+        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+                            VALUES(?,?,?,?,?,?,?,?,?) '''
+
+        csvFileName = f'ECON_upload_{shipment_number:04d}.csv'
+        _csvFile = open(csvFileName,'w')
+        _csvFile.write('KIND_OF_PART,SERIAL_NUMBER,BATCH_NUMBER,BARCODE,NAME_LABEL,LOCATION,INSTITUTION,COMMENT_DESCRIPTION,MANUFACTURER,PRODUCTION_DATE\n')
+
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        df = self.getCurrentStatus().set_index('chip_id')
+
+        full_chip_list = []
+
+        if type(trays) is int:
+            trays = [trays]
+        for _tray_number in trays:
+            print(_tray_number)
+            chips = self.getChipsInTray(_tray_number)
+            isECOND = (self.getStatusForTray(_tray_number).chip_type=='ECOND').all()
+            isECONT = (self.getStatusForTray(_tray_number).chip_type=='ECONT').all()
+
+            for _chip in chips.itertuples():
+                chip_id = _chip.chip_id
+                if _chip.entry_type=='SHIPPED':
+                    print(f'Chip {chip_id:07d} is already listed as having been shipped, skipping')
+                    continue
+                _serial = df.loc[chip_id].serial_number
+                if _serial == '':
+                    print(f'Chip {chip_id:07d} does not have a serial number assigned!!!!!')
+                    continue
+                if not _serial.startswith('320ICEC') or len(_serial)!=15:
+                    print(f'Chip {chip_id:07d} has an invalid serial number: {_serial}')
+                    continue
+
+                if isECOND:
+                    try:
+                        if is_preseries:
+                            _grade=''
+                            _voltage_str=''
+                            _voltage_comment=''
+                        else:
+                            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                            _grade = ECOND_grade_map[_quality]
+                            _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
+                            _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+                    except:
+                        _quality = 0
+                        print(f'Chip {chip_id:07d} not found in grades db!!!!!')
+                        _grade = ECOND_grade_map[_quality]
+                        _voltage_str = ''
+                        _voltage_comment = 'Possibly untested chip'
+                else:
+                    try:
+                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                        _grade = ECONT_grade_map[_quality]
+                        _voltage_str = ''
+                        _voltage_comment = ''
+                    except:
+                        _quality = 0
+                        print(f'Chip {chip_id:07d} not found in grades db!!!!!')
+                        _grade = ECONT_grade_map[_quality]
+                        _voltage_str = ''
+                        _voltage_comment = 'Possibly untested chip'
+
+                _pkg_date = df.loc[chip_id].pkg_date
+
                 full_chip_list.append(_serial)
                 #update the locations database with the shipment
                 data = (chip_id,
@@ -306,6 +412,7 @@ class LocationsDatabase:
                         timestamp)
                 self.cursor.execute(sql_cmd_insert,data)
 
+                #re-uses setChipSerialNumber function, just to record shipment note
                 self.setChipSerialNumber(chip_id,_serial,shipment_note,timestamp)
 
                 #write data into csv file
