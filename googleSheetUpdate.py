@@ -29,17 +29,17 @@ grades_D = {-1:'NoTest',
           2:'Fail',
           3:'Fail',
           4:'Fail 1.2V',
-          5:'Up 1.14',
-          6:'Down 1.08',
-          7:'Strange 1.05',
-          8:'Charm 1.03',
-          9:'Beauty 1.01',
-          10:'Truth 0.99',
-          11:'Truth 0.99',
-          12:'Truth 0.99',
-          13:'Truth 0.99',
-          14:'Truth 0.99',
-          15:'Truth 0.99',
+          5:'Q 1.14',
+          6:'K 1.08',
+          7:'H 1.05',
+          8:'F 1.03',
+          9:'D 1.01',
+          10:'B 0.97/0.99',
+          11:'B 0.97/0.99',
+          12:'A <=0.95',
+          13:'A <=0.95',
+          14:'A <=0.95',
+          15:'A <=0.95',
          }
 grades_T = {-1:'NoTest',
           0:'Fail',
@@ -59,7 +59,7 @@ d.columns.name=None
 d = d.fillna(0).astype(int)
 
 d_T = d[d.current_tray<10000][['current_tray','Pass','Fail','NoTest']]
-d_D = d[d.current_tray>=10000][['current_tray','Truth 0.99','Beauty 1.01','Charm 1.03','Strange 1.05','Down 1.08','Up 1.14','Fail 1.2V','Fail','NoTest']]
+d_D = d[d.current_tray>=10000][['current_tray','A <=0.95','B 0.97/0.99','D 1.01','F 1.03','H 1.05','K 1.08','Q 1.14','Fail 1.2V','Fail','NoTest']]
 
 d_D.set_index('current_tray',inplace=True)
 d_T.set_index('current_tray',inplace=True)
@@ -83,12 +83,13 @@ d_D.loc[[18007,18008,18009,18010,18011,18012],'Preseries'] = d_D.loc[[18007,1800
 d_D['isSorted'] = d_D.index>17000
 d_T['isSorted'] = (d_T.Pass==d_T.Total) | (d_T.Fail==d_T.Total) | (d_T.Preseries==d_T.Total)
 
-d_D = d_D[['Truth 0.99',
-           'Beauty 1.01',
-           'Charm 1.03',
-           'Strange 1.05',
-           'Down 1.08',
-           'Up 1.14',
+d_D = d_D[['A <=0.95',
+           'B 0.97/0.99',
+           'D 1.01',
+           'F 1.03',
+           'H 1.05',
+           'K 1.08',
+           'Q 1.14',
            'Fail 1.2V',
            'Fail',
            'NoTest',
@@ -112,10 +113,10 @@ econt = sh.get_worksheet(2)
 econd_timeseries = sh.get_worksheet(3)
 econt_timeseries = sh.get_worksheet(4)
 
-n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted) & ~d_D.Reject].sum().values[:11].astype(int).tolist()
-n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted) & ~d_D.Reject].sum().values[:11].astype(int).tolist()
-n_D_shipped = d_D[(d_D.Location!='WH14') & ~d_D.Reject].sum().values[:11].astype(int).tolist()
-n_D_reject = d_D[(d_D.Reject)].sum().values[:11].astype(int).tolist()
+n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
+n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
+n_D_shipped = d_D[(d_D.Location!='WH14') & ~d_D.Reject].sum().values[:12].astype(int).tolist()
+n_D_reject = d_D[(d_D.Reject)].sum().values[:12].astype(int).tolist()
 
 n_T_sorted = d_T[(d_T.Location=='WH14') & (d_T.isSorted) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
 n_T_unsorted = d_T[(d_T.Location=='WH14') & (~d_T.isSorted) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
@@ -127,7 +128,7 @@ availability.update([n_T_sorted,n_T_unsorted,n_T_shipped, n_T_reject],'B13')
 availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 
 econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
-econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
+# econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
 
 econd.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econd.batch_clear(['A4:Z999'])
@@ -136,3 +137,23 @@ econd.update([d_D.reset_index().columns.values.tolist()] + d_D.reset_index().val
 econt.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econt.batch_clear(['A4:Z999'])
 econt.update([d_T.reset_index().columns.values.tolist()] + d_T.reset_index().values.tolist(),'A3')
+
+
+
+### calculate totals by corner
+d_corners = df.set_index('chip_id').loc[1100000:].copy(deep=True)
+
+processMap = {110:'Prod3',160:'Std',161:'5Pct',162:'10Pct',163:'15Pct',164:'SlowN-SlowP',165:'SlowN-FastP',166:'FastN-SlowP'}
+d_corners['Process'] = (d_corners.index/10000).astype(int).map(processMap)
+
+a = d_corners.groupby(['Process','quality'])[['time']].count()
+b = a.reset_index().pivot(index='Process',columns='quality',values='time').fillna(0)
+c = b.loc[['Prod3','Std','5Pct','10Pct','15Pct','SlowN-SlowP','SlowN-FastP','FastN-SlowP']][[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,-1]]
+c.columns = ['0.89','0.91','0.93','0.95','0.97','0.99','1.01','1.03','1.05','1.08','1.14','1.20','1.26','1.32','>1.32','Fail','NoTest']
+d = c.astype(int)
+_total = d.sum(axis=1)
+d['Tested'] = _total - d['NoTest']
+d['Total'] = _total
+econd_corners = sh.get_worksheet(5)
+econd_corners.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
+econd_corners.update([d.reset_index().columns.values.tolist()] + d.reset_index().values.tolist(),'A4')
