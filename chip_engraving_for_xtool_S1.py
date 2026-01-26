@@ -319,7 +319,7 @@ def make_proj(items, variety='LASER_PLANE'):
         'data': {
             'LASER_PLANE': {
                 'material': 0,
-                'focalLength': 4, #FIXME: Is this right?!?
+                'focalLength': 11.12, #FIXME: Is this right?!?
                 'isProcessByLayer': False,
                 'pathPlanning': 'auto',
                 'fillPlanning': 'separate',

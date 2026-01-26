@@ -327,8 +327,8 @@ class LocationsDatabase:
 
         layout = chip_layout()
 
-        with open(f'XCS_files/whole_tray_{tray_number}.xcs', 'w') as outfile:
-            print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=400, y=100, angle=90))), file=outfile)
+        with open(f'XCS_files/whole_tray_{tray_number:05d}.xcs', 'w') as outfile:
+            print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=404.42, y=180.23, angle=90))), file=outfile)
 
 
     def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
