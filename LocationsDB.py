@@ -58,15 +58,19 @@ ECONT_grade_map = {1:'A',
                    0:'X'}
 
 class LocationsDatabase:
-    def __init__(self,filename):
+    def __init__(self,filename, RO=False):
         if os.path.exists(filename):
-            self.conn = sqlite3.connect(filename)
+            self.conn = sqlite3.connect(filename, uri=RO)
             self.cursor = self.conn.cursor()
         else:
             print("File Does Not Exists")
 
     def commitAndClose(self):
         self.conn.commit()
+        self.cursor.close()
+        self.conn.close()
+
+    def close(self):
         self.cursor.close()
         self.conn.close()
 
@@ -126,6 +130,10 @@ class LocationsDatabase:
         """Returns the data from a specific chip"""
         return pd.read_sql_query(f"SELECT * FROM locations WHERE chip_id = {chip_id}",self.conn)
 
+    def getChipStatus(self,chip_id):
+        """Returns the data from a specific chip"""
+        return pd.read_sql_query(f"SELECT * FROM status WHERE chip_id = {chip_id}",self.conn)
+
     def checkPositionAlreadyFilled(self,new_tray,new_position):
         df_last = self.getCurrentLocations()
         return ((df_last.current_position==new_position) & (df_last.current_tray==new_tray)).sum()>0
@@ -183,7 +191,7 @@ class LocationsDatabase:
         data = (chip_id,entry_type,int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
 
-    def setChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
+    def insertChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
         sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
 
@@ -213,6 +221,50 @@ class LocationsDatabase:
 
         data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
+
+    def setChipSerialNumber(self, chip_id, grade_db, timestamp=None, is_preseries=False):
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        df = self.getCurrentStatus().set_index('chip_id')
+
+        if not df.loc[chip_id].serial_number=="":
+            print(f'Chip {chip_id:07d} already has a serial number assigned: {df.loc[chip_id].serial_number}')
+            return -1
+
+        isECOND = chip_id>1000000
+        isECONT = chip_id<1000000
+
+        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+        if isECOND:
+            _grade = ECOND_grade_map[_quality]
+            _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
+            _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
+        else:
+            _grade = ECONT_grade_map[_quality]
+            _voltage_str = ''
+            _voltage_comment = ''
+
+        #get wafer production log grade
+        _lot = production_lot_map[df.loc[chip_id].pkg_batch]
+        #get packaging date
+        _pkg_date = df.loc[chip_id].pkg_date
+
+        #start buiding serial number
+        _serial = '320ICEC'
+        _serial += df.loc[chip_id].chip_type[-1:]
+        _serial += _grade
+        _serial += _lot
+        print(_serial)
+
+        #count how many chips already have a serial number with the same grade and lot labels, increment by 1
+        N = df.serial_number.str.startswith(_serial).sum()+1
+        _serial += f'{N:05d}'
+
+        print(_serial)
+        # #put this chip serial number into the dataframe
+        df.loc[chip_id,'serial_number'] = _serial
+        self.insertChipSerialNumber(chip_id,_serial,"",timestamp)
 
     def setTraySerialNumber(self, trays, grade_db, timestamp=None, is_preseries=False):
 
@@ -290,7 +342,7 @@ class LocationsDatabase:
 
                 #put this chip serial number into the dataframe
                 df.loc[chip_id,'serial_number'] = _serial
-                self.setChipSerialNumber(chip_id,_serial,"",timestamp)
+                self.insertChipSerialNumber(chip_id,_serial,"",timestamp)
 
     def generateXCSForTray(self, tray):
         if type(tray)==str:
