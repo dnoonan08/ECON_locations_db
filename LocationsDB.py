@@ -169,7 +169,7 @@ class LocationsDatabase:
         data = (chip_id,'TESTED',int(tray),int(position), int(tray),int(position),"WH14",comments,timestamp)
         self.cursor.execute(sql_cmd_insert,data)
 
-    def setChipGrade(self,chip_id,grade,comments="",timestamp=None):
+    def setChipGrade(self,chip_id,grade,comments="",timestamp=None, set_serialnumber=False, grade_db=None):
         sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
                             VALUES(?,?,?,?,?,?,?,?,?) '''
 
@@ -178,8 +178,41 @@ class LocationsDatabase:
 
         self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
         chip_info = list(self.cursor.fetchone())
-        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),"","")
+
+        if set_serialnumber:
+            df = self.getCurrentStatus().set_index('chip_id')
+
+            isECOND = chip_id>1000000
+            isECONT = chip_id<1000000
+
+            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+            if isECOND:
+                _grade = ECOND_grade_map[_quality]
+            else:
+                _grade = ECONT_grade_map[_quality]
+
+            #get wafer production log grade
+            _lot = production_lot_map[df.loc[chip_id].pkg_batch]
+            #get packaging date
+            _pkg_date = df.loc[chip_id].pkg_date
+
+            #start buiding serial number
+            _serial = '320ICEC'
+            _serial += df.loc[chip_id].chip_type[-1:]
+            _serial += _grade
+            _serial += _lot
+
+            #count how many chips already have a serial number with the same grade and lot labels, increment by 1
+            N = df.serial_number.str.startswith(_serial).sum()+1
+            _serial += f'{N:05d}'
+            _serial_number = _serial
+        else:
+            _serial_number = ""
+
+        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),_serial_number,"")
         self.cursor.execute(sql_cmd_insert,data)
+
+
 
     def setChipLocation(self, chip_id, entry_type, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
