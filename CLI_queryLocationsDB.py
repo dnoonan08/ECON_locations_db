@@ -65,9 +65,10 @@ def get_next_barcode(loc_db):
 @click.option("--location",is_flag=True, help="Check the current location of a given chip or tray")
 @click.option("--history",is_flag=True, help="Get the full history of a chip")
 @click.option("--status",is_flag=True, help="Get the status table for a given chip or tray")
+@click.option("--xcs",is_flag=True, help="Generate XCS file for tray")
 @click.option("--sorting_tray_summary",is_flag=True, help="Get a summary for all sorting trays")
 @click.option("--locations_db", default="/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db", help="Log file to log chip movements.")
-def main(tray, chip, get_next_tray, location, history, status, sorting_tray_summary, locations_db):
+def main(tray, chip, get_next_tray, location, history, status, xcs, sorting_tray_summary, locations_db):
 
     loc_db = LocationsDatabase(locations_db)
 
@@ -81,6 +82,14 @@ def main(tray, chip, get_next_tray, location, history, status, sorting_tray_summ
         else:
             print('The unique chip_id you want to get the history of must be specified')
             return
+
+    if xcs:
+        if tray!=0:
+            print(f'Generating .xcs file for tray {tray:05d}')
+            loc_db.generateXCSForTray(tray)
+            return
+        else:
+            print('Must specify a tray number to generate the XCS file for')
 
     if location:
         if chip!=0:
