@@ -378,10 +378,11 @@ class LocationsDatabase:
         import json
 
         layout = chip_layout()
-
-        with open(f'XCS_files/whole_tray_{tray_number:05d}.xcs', 'w') as outfile:
+        fname = f'XCS_files/whole_tray_{tray_number:05d}.xcs'
+        with open(fname, 'w') as outfile:
             print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=404.42, y=180.23, angle=90))), file=outfile)
 
+        return fname
 
     def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
         sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
