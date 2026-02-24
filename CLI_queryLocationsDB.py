@@ -87,10 +87,11 @@ def main(tray, chip, get_next_tray, location, history, status, xcs, sorting_tray
         if tray!=0:
             print(f'Generating .xcs file for tray {tray:05d}')
             fname = loc_db.generateXCSForTray(tray)
-            print(f'   {fname}')
-            import os
-            os.chmod(fname,0o660)
-            return
+            if fname:
+                print(f'   {fname}')
+                import os
+                os.chmod(fname,0o660)
+                return
         else:
             print('Must specify a tray number to generate the XCS file for')
 
