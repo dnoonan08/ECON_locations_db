@@ -8,7 +8,7 @@ sys.path.append('..')
 from LocationsDB import LocationsDatabase
 from GradesDB import GradesDatabase
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 _cwd = os.path.dirname(os.path.abspath(__file__))
@@ -112,9 +112,11 @@ econd = sh.get_worksheet(1)
 econt = sh.get_worksheet(2)
 econd_timeseries = sh.get_worksheet(3)
 econt_timeseries = sh.get_worksheet(4)
+econd_corners = sh.get_worksheet(5)
+daily_summary = sh.get_worksheet(6)
 
 n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
-n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
+n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted) & ~d_D.Reject & (d_D.index<16400)].sum().values[:12].astype(int).tolist()
 n_D_shipped = d_D[(d_D.Location!='WH14') & ~d_D.Reject].sum().values[:12].astype(int).tolist()
 n_D_reject = d_D[(d_D.Reject)].sum().values[:12].astype(int).tolist()
 
@@ -128,7 +130,7 @@ availability.update([n_T_sorted,n_T_unsorted,n_T_shipped, n_T_reject],'B13')
 availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 
 econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
-# econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
+econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
 
 econd.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econd.batch_clear(['A4:Z999'])
@@ -154,6 +156,34 @@ d = c.astype(int)
 _total = d.sum(axis=1)
 d['Tested'] = _total - d['NoTest']
 d['Total'] = _total
-econd_corners = sh.get_worksheet(5)
 econd_corners.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econd_corners.update([d.reset_index().columns.values.tolist()] + d.reset_index().values.tolist(),'A4')
+
+_today = datetime.today()
+_yesterday = _today - timedelta(days=1)
+
+if _today.hour<12: #only accumulate in the morning
+    df.time = pd.to_datetime(df.time)
+
+    _today_7am = f'{_today.year}-{_today.month:02d}-{_today.day:02d} 7h'
+    _yesterday_7am = f'{_yesterday.year}-{_yesterday.month:02d}-{_yesterday.day:02d} 7h'
+
+    df_yesterday = df[(df.time>_yesterday_7am) & (df.time<_today_7am)].copy(deep=True)
+
+    df_yesterday['ECON_type'] = np.where(df_yesterday.chip_id<1000000, 'ECONT','ECOND')
+    df_yesterday = df_yesterday[df_yesterday.entry_type.isin(['TESTED','SORTED','SHIPPED'])]
+
+    df_yesterday = df_yesterday.groupby(['ECON_type','entry_type']).count()[['chip_id']]
+
+    result = pd.DataFrame([['ECOND','TESTED',0],
+                           ['ECOND','SORTED',0],
+                           ['ECOND','SHIPPED',0],
+                           ['ECONT','TESTED',0],
+                           ['ECONT','SORTED',0],
+                           ['ECONT','SHIPPED',0],
+                           ],columns = ['ECON_type','entry_type','chip_id']).set_index(['ECON_type','entry_type'])
+
+    result.loc[df_yesterday.index] = df_yesterday
+    result.values.flatten()
+
+    daily_summary.append_row([f'{_yesterday.year}-{_yesterday.month:02d}-{_yesterday.day:02d}'] + result.values.flatten().tolist(),value_input_option='USER_ENTERED')
