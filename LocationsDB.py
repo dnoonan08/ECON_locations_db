@@ -499,11 +499,19 @@ class LocationsDatabase:
                 self.cursor.execute(sql_cmd_insert,data)
 
                 #re-uses setChipSerialNumber function, just to record shipment note
-                self.setChipSerialNumber(chip_id,_serial,shipment_note,timestamp)
+                self.insertChipSerialNumber(chip_id,_serial,shipment_note,timestamp)
 
                 #write data into csv file
                 T_D = 'T' if isECONT else 'D'
-                KIND_OF_PART = f'ECON-{T_D}'
+                _grade = _serial[8]
+                if isECONT and _serial[5:8]!='ECT':
+                    print(f'MISMATCH BETWEEN SERIAL AND CHIP TYPE {chip_id} {_serial}')
+                if isECOND and _serial[5:8]!='ECD':
+                    print(f'MISMATCH BETWEEN SERIAL AND CHIP TYPE {chip_id} {_serial}')
+                if isECONT:
+                    KIND_OF_PART = f'ECON-T'
+                else:
+                    KIND_OF_PART = f'ECON-D-{_grade}'
                 SERIAL_NUMBER = _serial
                 BATCH_NUMBER = f'{shipment_number:04d}-{_tray_number:05d}'
                 if is_preseries:
