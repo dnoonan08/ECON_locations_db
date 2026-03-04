@@ -179,9 +179,11 @@ class LocationsDatabase:
         self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
         chip_info = list(self.cursor.fetchone())
 
-        if set_serialnumber:
-            df = self.getCurrentStatus().set_index('chip_id')
+        df = self.getCurrentStatus().set_index('chip_id')
 
+        if not df.loc[chip_id].serial_number=="":
+            _serial_number = df.loc[chip_id].serial_number
+        elif set_serialnumber:
             isECOND = chip_id>1000000
             isECONT = chip_id<1000000
 
