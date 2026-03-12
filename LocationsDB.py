@@ -239,9 +239,9 @@ class LocationsDatabase:
         self.cursor.execute(sql_cmd_insert,data)
 
     def getStatusForTray(self,tray_number):
-        chip_list = self.getChipsInTray(tray_number).chip_id.values
-        df_status = self.getCurrentStatus()
-        return df_status[df_status.chip_id.isin(chip_list)]
+        chip_list = self.getChipsInTray(tray_number)[['current_position','chip_id']].set_index('chip_id')
+        df_status = self.getCurrentStatus().set_index('chip_id')
+        return chip_list.merge(df_status,left_index=True,right_index=True).reset_index().set_index('current_position')
 
     def getChipsInTray(self,tray_number):
         df_ = self.getCurrentLocations()

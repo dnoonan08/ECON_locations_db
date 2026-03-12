@@ -4,6 +4,7 @@ import numpy as np
 import click
 
 from LocationsDB import LocationsDatabase
+from GradesDB import GradesDatabase
 
 import pandas as pd
 pd.set_option('display.max_rows', 100)
@@ -65,12 +66,17 @@ def get_next_barcode(loc_db):
 @click.option("--location",is_flag=True, help="Check the current location of a given chip or tray")
 @click.option("--history",is_flag=True, help="Get the full history of a chip")
 @click.option("--status",is_flag=True, help="Get the status table for a given chip or tray")
+@click.option("--grade",is_flag=True, help="Get the grades table for a given chip or tray")
 @click.option("--xcs",is_flag=True, help="Generate XCS file for tray")
 @click.option("--sorting_tray_summary",is_flag=True, help="Get a summary for all sorting trays")
-@click.option("--locations_db", default="/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db", help="Log file to log chip movements.")
-def main(tray, chip, get_next_tray, location, history, status, xcs, sorting_tray_summary, locations_db):
+@click.option("--locations_db", default="/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db", help="File path for the locations database.")
+@click.option("--grades_db", default="/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/test_grade_database.db", help="File path for the grades database.")
+def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorting_tray_summary, locations_db, grades_db):
 
     loc_db = LocationsDatabase(locations_db)
+
+    if grade:
+        gra_db = GradesDatabase(grades_db)
 
     if get_next_tray:
         get_next_barcode(loc_db)
@@ -116,7 +122,26 @@ def main(tray, chip, get_next_tray, location, history, status, xcs, sorting_tray
             return
         elif tray!=0:
             d = loc_db.getStatusForTray(tray)
-            print(d.set_index('chip_id'))
+            d.index.name = 'Tray Pos.'
+            print(d)
+            print(f'Total chips: {len(d)}')
+            return
+        else:
+            print('Must specify either a chip or tray number to query')
+            return
+
+    if grade:
+        d_grade = gra_db.getCurrentGrades().set_index('chip_id')
+        if chip!=0:
+            print(d_grade.loc[chip])
+            return
+        elif tray!=0:
+            d = loc_db.getChipsInTray(tray)
+            d_grade = gra_db.getCurrentGrades().set_index('chip_id')
+            d = loc_db.getChipsInTray(tray)[['current_position','chip_id']].set_index('chip_id')
+            d = d.merge(d_grade,left_index=True,right_index=True).reset_index().set_index('current_position')
+            d.index.name = 'Tray Pos.'
+            print(d)
             print(f'Total chips: {len(d)}')
             return
         else:
