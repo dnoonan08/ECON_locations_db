@@ -123,7 +123,7 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorti
         elif tray!=0:
             d = loc_db.getStatusForTray(tray)
             d.index.name = 'Tray Pos.'
-            print(d)
+            print(d.sort_index())
             print(f'Total chips: {len(d)}')
             return
         else:
@@ -141,7 +141,7 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorti
             d = loc_db.getChipsInTray(tray)[['current_position','chip_id']].set_index('chip_id')
             d = d.merge(d_grade,left_index=True,right_index=True).reset_index().set_index('current_position')
             d.index.name = 'Tray Pos.'
-            print(d)
+            print(d.sort_index())
             print(f'Total chips: {len(d)}')
             return
         else:
