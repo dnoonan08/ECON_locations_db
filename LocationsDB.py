@@ -187,27 +187,31 @@ class LocationsDatabase:
             isECOND = chip_id>1000000
             isECONT = chip_id<1000000
 
-            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
-            if isECOND:
-                _grade = ECOND_grade_map[_quality]
-            else:
-                _grade = ECONT_grade_map[_quality]
+            try:
+                _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                if isECOND:
+                    _grade = ECOND_grade_map[_quality]
+                else:
+                    _grade = ECONT_grade_map[_quality]
 
-            #get wafer production log grade
-            _lot = production_lot_map[df.loc[chip_id].pkg_batch]
-            #get packaging date
-            _pkg_date = df.loc[chip_id].pkg_date
+                #get wafer production log grade
+                _lot = production_lot_map[df.loc[chip_id].pkg_batch]
+                #get packaging date
+                _pkg_date = df.loc[chip_id].pkg_date
 
-            #start buiding serial number
-            _serial = '320ICEC'
-            _serial += df.loc[chip_id].chip_type[-1:]
-            _serial += _grade
-            _serial += _lot
+                #start buiding serial number
+                _serial = '320ICEC'
+                _serial += df.loc[chip_id].chip_type[-1:]
+                _serial += _grade
+                _serial += _lot
 
-            #count how many chips already have a serial number with the same grade and lot labels, increment by 1
-            N = df.serial_number.str.startswith(_serial).sum()+1
-            _serial += f'{N:05d}'
-            _serial_number = _serial
+                #count how many chips already have a serial number with the same grade and lot labels, increment by 1
+                N = df.serial_number.str.startswith(_serial).sum()+1
+                _serial += f'{N:05d}'
+                _serial_number = _serial
+            except:
+                print(f'Issue with getting serial number of chip {chip_id}, leaving it blank')
+                _serial_number = ""
         else:
             _serial_number = ""
 
