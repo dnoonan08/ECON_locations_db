@@ -6,7 +6,9 @@ import pandas as pd
 
 
 production_lot_map = {'N61H30.00':'A',
+                      'N61.H30.00':'A',
                       'N61H52.00':'B',
+                      'N61.H52.00':'B',
                       'P1':'C',
                       'P1v2':'D',
                       "NCTA61 Wafs All":'E',
