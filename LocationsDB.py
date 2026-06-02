@@ -400,7 +400,6 @@ class LocationsDatabase:
 
         #get all chips in the tray and merge in the serial numbers
         chips = self.getChipsInTray(tray_number).set_index('chip_id')
-        chip_ids = chips.index.tolist()
         chip_status = self.getStatusForTray(tray_number).set_index('chip_id')
         chips['serial_number'] = chip_status.loc[chips.index].serial_number
 
@@ -410,10 +409,12 @@ class LocationsDatabase:
             return
 
         #reindex by the position
-        chips.set_index('current_position',inplace=True)
+        chips.reset_index(inplace=True) #make chip_id a column again so chip_id can be properly read out after the reindex
+        chips.set_index('current_position', inplace=True)
 
-        #get list of serial numbers, with None in places where there is no chip
+        #get list of serial numbers and chip IDs, with None in places where there is no chip
         serial_numbers = [chips.loc[i].serial_number  if i in chips.index else None for i in range(1,91)]
+        chip_ids = [chips.loc[i].chip_id  if i in chips.index else None for i in range(1,91)]
 
         #generate XCS file that can be used in tool for marking
         from chip_engraving_for_xtool_S1 import chip_layout, make_proj
