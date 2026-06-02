@@ -409,10 +409,12 @@ class LocationsDatabase:
             return
 
         #reindex by the position
-        chips.set_index('current_position',inplace=True)
+        chips.reset_index(inplace=True) #make chip_id a column again so chip_id can be properly read out after the reindex
+        chips.set_index('current_position', inplace=True)
 
-        #get list of serial numbers, with None in places where there is no chip
+        #get list of serial numbers and chip IDs, with None in places where there is no chip
         serial_numbers = [chips.loc[i].serial_number  if i in chips.index else None for i in range(1,91)]
+        chip_ids = [chips.loc[i].chip_id  if i in chips.index else None for i in range(1,91)]
 
         #generate XCS file that can be used in tool for marking
         from chip_engraving_for_xtool_S1 import chip_layout, make_proj
@@ -421,7 +423,7 @@ class LocationsDatabase:
         layout = chip_layout()
         fname = f'XCS_files/whole_tray_{tray_number:05d}.xcs'
         with open(fname, 'w') as outfile:
-            print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=404.42, y=180.23, angle=90))), file=outfile)
+            print(json.dumps(make_proj(layout.make_tray(serial_numbers, chip_ids, x=404.42, y=180.23, angle=90))), file=outfile)
 
         return fname
 
