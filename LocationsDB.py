@@ -400,6 +400,7 @@ class LocationsDatabase:
 
         #get all chips in the tray and merge in the serial numbers
         chips = self.getChipsInTray(tray_number).set_index('chip_id')
+        chip_ids = chips.index.tolist()
         chip_status = self.getStatusForTray(tray_number).set_index('chip_id')
         chips['serial_number'] = chip_status.loc[chips.index].serial_number
 
@@ -421,7 +422,7 @@ class LocationsDatabase:
         layout = chip_layout()
         fname = f'XCS_files/whole_tray_{tray_number:05d}.xcs'
         with open(fname, 'w') as outfile:
-            print(json.dumps(make_proj(layout.make_tray(serial_numbers, x=404.42, y=180.23, angle=90))), file=outfile)
+            print(json.dumps(make_proj(layout.make_tray(serial_numbers, chip_ids, x=404.42, y=180.23, angle=90))), file=outfile)
 
         return fname
 

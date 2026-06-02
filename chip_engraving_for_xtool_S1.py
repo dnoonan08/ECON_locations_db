@@ -438,12 +438,21 @@ class chip_layout:
         return [convert_path_to_XCS_fragment(outline, x, y, 0, 0, power=0, speed=600, passes=1, fill=False),
                 convert_path_to_XCS_fragment(path, x, y, 0, 0, power=40, speed=400, passes=1, fill=True)]
     
-    def make_tray(self, codes, x=0, y=0, angle=0):
+    def make_tray(self, codes, chip_ids, x=0, y=0, angle=0):
         items = []
         for i in range(self.N_chips_x * self.N_chips_y):
             if codes[i] is not None:
+                # delta y caused by prod vs corner (0: prod1/2, 1:prod3, 6:corner)
+                lot_code = (chip_ids[i]//100000)%10 # get the 6th digit of the chip_id 
+                if lot_code in [0,1]:
+                    deltay = -0.3 # shift to prod chips
+                elif lot_code == 6:
+                    deltay = 0.0 # no shift for corner chips
+                else:
+                    print(f'Warning: unexpected code {lot_code} for chip_id {chip_ids[i]}. The same y location as corner chips applied.')
+                    deltay = 0.0 # default to no shift for unexpected lot codes
                 rotx, roty = rot(self.chip_x0 - self.chip_width/2 + (i%self.N_chips_x)*self.chip_xstep, self.chip_y0 - self.chip_height/2 + (i//self.N_chips_x)*self.chip_ystep, angle)
-                items.extend(self.make_one_chip(codes[i], x+rotx, y+roty, angle))
+                items.extend(self.make_one_chip(codes[i], x+rotx, y+roty+deltay, angle))
         return items
 
 
