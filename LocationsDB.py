@@ -62,7 +62,7 @@ ECONT_grade_map = {1:'A',
 
 class LocationsDatabase:
     def __init__(self,address, RO=False):
-        self.engine = create_engine(f'postgresql://dnoonan@{address}:5432/econlocations')
+        self.engine = create_engine(f'postgresql://{address}:5432/econlocations')
         self.conn = self.engine.connect()
 
         metadata = MetaData()
