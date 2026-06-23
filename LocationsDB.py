@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, insert, MetaData
+from sqlalchemy import create_engine, insert, MetaData, text
 
 from datetime import datetime
 

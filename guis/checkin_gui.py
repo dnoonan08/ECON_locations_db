@@ -12,14 +12,14 @@ from LocationsDB import LocationsDatabase
 
 ### second window, showing summary of chips that will be checked in
 class ChipSummaryAndCheckinWindow(QWidget):
-    def __init__(self, _data, _file_locations_db, _barcode):
+    def __init__(self, _data, _host_locations_db, _barcode):
         super().__init__()
         self.data = _data
         self.setWindowTitle("Chips To Check In")
         self.setGeometry(150, 150, 800, 20*len(_data))
         layout = QVBoxLayout()
 
-        self.locations_db = LocationsDatabase(_file_locations_db)
+        self.locations_db = LocationsDatabase(_host_locations_db)
         tray_exists = self.locations_db.checkTrayExists(self.data[0][2])
 
         table = QTableWidget()
@@ -149,22 +149,14 @@ class ECONCheckinWidget(QWidget):
         self.location.setText('WH14')
         layout.addWidget(self.location)
 
-        # Button to open a file
-        self.file_locations_db = QLineEdit(self)
-        self.file_locations_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db')
-        self.file_locations_db.textChanged.connect(self.validate_options) #validate the selections
+        # Point to host name for the database
+        self.locations_db_host = QLineEdit(self)
+        self.locations_db_host.setText('cmsnghcal01.fnal.gov')
+        self.locations_db_host.textChanged.connect(self.validate_options) #validate the selections
 
-        self.browse_button = QPushButton("Browse Files", self)
-        self.browse_button.clicked.connect(self.open_file_dialog)
-        self.browse_button.setFixedWidth(100)
-
-        self.locations_db_label = QLabel('Locations Database File:')
+        self.locations_db_label = QLabel('Locations Database Host:')
         layout.addWidget(self.locations_db_label)
-        db_layout = QHBoxLayout()
-        db_layout.addWidget(self.browse_button)
-        db_layout.addWidget(self.file_locations_db)
-        layout.addLayout(db_layout)
-
+        layout.addWidget(self.locations_db_host)
 
         self.error_label=  QLabel('')
         self.error_label.setFixedHeight(0)
@@ -189,7 +181,7 @@ class ECONCheckinWidget(QWidget):
                                                    "Database file (*db)")
         if file_path:
             print(f"Selected file: {file_path}")
-            self.file_locations_db.setText(file_path)
+            self.locations_db_host.setText(file_path)
 
     def commit_and_close(self):
         print('Committing and Closing')
@@ -202,12 +194,8 @@ class ECONCheckinWidget(QWidget):
         pkg_date_valid = self.pkg_week.currentText() not in ["", "Select an option"]  # Check if a valid option is selected
         wafer_lot_valid = self.wafer_lot.currentText() not in ["", "Select an option"]  # Check if a valid option is selected
         barcode_valid =  ("ECONT-" in self.barcode_text.text() or "ECOND-" in self.barcode_text.text()) and len(self.barcode_text.text())==11
-        locations_db = self.file_locations_db.text()
-        locations_db_valid = os.path.exists(locations_db)
-        if not locations_db_valid:
-            self.locations_db_label.setText("Locations Database Files: <font color='red'>File Path Does Not Exist</font>")
-        else:
-            self.locations_db_label.setText("Locations Database Files:")
+
+        locations_db_valid = True
 
         #check that barcode matches wafer types
         barcode_wafer_match = True
@@ -270,7 +258,7 @@ class ECONCheckinWidget(QWidget):
         _n_chips = self.n_chips.value()
         _wafer_lot = self.wafer_lot.currentText()
         _location = self.location.text()
-        _file_locations_db = self.file_locations_db.text()
+        _host_locations_db = self.locations_db_host.text()
         print(f"Barcode: {_barcode}")
         print(f"Pkg Date: {_pkg_date}")
         print(f"Wafer Lot: {_wafer_lot}")
@@ -287,7 +275,7 @@ class ECONCheckinWidget(QWidget):
                 [_chip_id, _chip_type, _tray_number, _chip_pos, _location, _pkg_date, _wafer_lot]
             )
         # Optional: Show it in the UI too
-        self.chip_summary_window = ChipSummaryAndCheckinWindow(full_tray_data, _file_locations_db, _barcode)
+        self.chip_summary_window = ChipSummaryAndCheckinWindow(full_tray_data, _host_locations_db, _barcode)
         self.chip_summary_window.show()
 
         #reset values
