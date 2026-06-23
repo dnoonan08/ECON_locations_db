@@ -193,6 +193,10 @@ class LocationsDatabase:
         """Returns the data from a specific chip"""
         return pd.read_sql_query(f"SELECT * FROM status WHERE chip_id = {chip_id}",self.conn)
 
+    def getChipGrade(self,chip_id):
+        """Returns the data from a specific chip"""
+        return pd.read_sql_query(f"SELECT * FROM grades WHERE chip_id = {chip_id}",self.conn)
+
     def checkPositionAlreadyFilled(self,new_tray,new_position):
         df_last = self.getCurrentLocations()
         return ((df_last.current_position==new_position) & (df_last.current_tray==new_tray)).sum()>0
@@ -290,7 +294,7 @@ class LocationsDatabase:
 
         #get the most recent entry in status table for this chip
         query = text(f"SELECT * FROM status WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-        chip_data = conn.execute(query,
+        chip_data = self.conn.execute(query,
             {"chip_id": chip_id}
         ).mappings().first()
 
@@ -303,7 +307,7 @@ class LocationsDatabase:
             try:
                 #get the quality for the most recent entry for this chip_id
                 query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-                _quality = conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+                _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
 
                 if isECOND:
                     _grade = ECOND_grade_map[_quality]
@@ -324,7 +328,7 @@ class LocationsDatabase:
                 #count how many chips already have a serial number with the same grade and lot labels, increment by 1
                 # count the number of distinct chip_id values where serial number starts with the above, and then add 1
                 query = text(f"SELECT COUNT(DISTINCT chip_id) FROM status WHERE serial_number LIKE :serial")
-                N = conn.execute(query,{"serial":f"{_serial}%"}).scalar_one()
+                N = self.conn.execute(query,{"serial":f"{_serial}%"}).scalar_one()
 
                 _serial += f'{N:05d}'
                 _serial_number = _serial
@@ -376,7 +380,7 @@ class LocationsDatabase:
 
         #get the most recent entry in status table for this chip
         query = text(f"SELECT * FROM status WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-        chip_data = conn.execute(query,
+        chip_data = self.conn.execute(query,
             {"chip_id": chip_id}
         ).mappings().first()
 
@@ -431,7 +435,7 @@ class LocationsDatabase:
         isECONT = chip_id<1000000
 
         query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-        _quality = conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+        _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
 
         if isECOND:
             _grade = ECOND_grade_map[_quality]
@@ -496,7 +500,7 @@ class LocationsDatabase:
                             _voltage_comment=''
                         else:
                             query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-                            _quality = conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+                            _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
 
                             _grade = ECOND_grade_map[_quality]
                             _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
@@ -510,7 +514,7 @@ class LocationsDatabase:
                 else:
                     try:
                         query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-                        _quality = conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+                        _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
 
                         _grade = ECONT_grade_map[_quality]
                         _voltage_str = ''
@@ -629,7 +633,7 @@ class LocationsDatabase:
                             _voltage_comment=''
                         else:
                             query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-                            _quality = conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+                            _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
 
                             _grade = ECOND_grade_map[_quality]
                             _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
@@ -643,7 +647,7 @@ class LocationsDatabase:
                 else:
                     try:
                         query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
-                        _quality = conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+                        _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
 
                         _grade = ECONT_grade_map[_quality]
                         _voltage_str = ''
@@ -661,12 +665,12 @@ class LocationsDatabase:
                 #update the locations database with the shipment
                 data = {
                     "chip_id": chip_id,
-                    "entry_type": "SHIPED",
+                    "entry_type": "SHIPPED",
                     "initial_tray": int(_chip.current_tray),
-                    "initial_position": int(_chip_current_position),
+                    "initial_position": int(_chip.current_position),
                     "current_tray": int(_chip.current_tray),
                     "current_position": int(_chip.current_position),
-                    "location": "WH14",
+                    "location": destination,
                     "comments": _chip.comments,
                     "time": timestamp
                 }
