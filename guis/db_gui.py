@@ -2,20 +2,20 @@
 
 from PyQt6.QtWidgets import (
     QTabWidget,
-    QApplication, 
-    QWidget, 
-    QVBoxLayout, 
-    QLineEdit, 
-    QComboBox, 
-    QPushButton, 
-    QLabel, 
-    QHBoxLayout, 
-    QSpinBox, 
-    QTableWidget, 
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QLineEdit,
+    QComboBox,
+    QPushButton,
+    QLabel,
+    QHBoxLayout,
+    QSpinBox,
+    QTableWidget,
     QTableWidgetItem,
-    QFileDialog, 
+    QFileDialog,
     QColorDialog,
-    QListWidget, 
+    QListWidget,
     QMessageBox,
     QFrame,
     QDialogButtonBox,
@@ -32,7 +32,6 @@ from datetime import datetime
 import sys
 sys.path.append('.')
 from LocationsDB import LocationsDatabase,ECOND_grade_map,ECONT_grade_map
-from GradesDB import GradesDatabase
 
 RegexTray = QRegularExpression(r'^(ECOND-1\d{4}|ECONT-0\d{4})$')
 
@@ -83,7 +82,6 @@ class DBWindow(QWidget):
     def __init__(self):
         # Variables
         self.locations_db = None
-        self.grade_db = None
         self.df = pd.DataFrame()
         self.df_picked = pd.DataFrame()
         self.color_map={} # color map defined to as 'label:(color,label text)', e.g. {'X':('#ff0000','X: Failed')}
@@ -98,37 +96,14 @@ class DBWindow(QWidget):
 
         # Data base initialization
         # Locations DB
-        self.file_locations_db = QLineEdit(self)
-        self.file_locations_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db')
-        self.file_locations_db.textChanged.connect(self.validate_options)
+        self.host_locations_db = QLineEdit(self)
+        self.host_locations_db.setText('cmsnghcal01.fnal.gov')
+        self.host_locations_db.textChanged.connect(self.validate_options)
 
-        self.loc_button = QPushButton("Browse Files", self)
-        self.loc_button.clicked.connect(self.open_loc_file_dialog)
-        self.loc_button.setFixedWidth(100)
-
-        self.locations_db_label = QLabel('Locations Database File:')
+        self.locations_db_label = QLabel('Locations Database Host:')
         left_panel.addWidget(self.locations_db_label)
-        loc_layout = QHBoxLayout()
-        loc_layout.addWidget(self.file_locations_db)
-        loc_layout.addWidget(self.loc_button)
-        left_panel.addLayout(loc_layout)
+        left_panel.addWidget(self.host_locations_db)
 
-        # Grade DB
-        self.file_grade_db = QLineEdit(self)
-        self.file_grade_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/test_grade_database.db')
-        self.file_grade_db.textChanged.connect(self.validate_options)
-
-        self.grade_button = QPushButton("Browse Files", self)
-        self.grade_button.clicked.connect(self.open_grade_file_dialog)
-        self.grade_button.setFixedWidth(100)
-
-        self.grade_db_label = QLabel('Grade Database File:')
-        left_panel.addWidget(self.grade_db_label)
-        grade_layout = QHBoxLayout()
-        
-        grade_layout.addWidget(self.file_grade_db)
-        grade_layout.addWidget(self.grade_button)
-        left_panel.addLayout(grade_layout)
         # Load Button
         self.load_button = QPushButton("Load Databases", self)
         self.load_button.clicked.connect(self.load_databases)
@@ -154,7 +129,7 @@ class DBWindow(QWidget):
         tray_layout.addWidget(self.barcode)
         tray_layout.addWidget(self.select_button)
         left_panel.addLayout(tray_layout)
-        
+
         tab_widget = QTabWidget()
         # Table for picked summary
         tab_picked_content = QWidget()
@@ -172,7 +147,7 @@ class DBWindow(QWidget):
         tab_widget.addTab(tab_picked_content,"Selected")
         tab_widget.addTab(tab_tray_content, "Tray")
         left_panel.addWidget(tab_widget)
-        
+
         # Separator line
         separator2 = QFrame()
         separator2.setFrameShape(QFrame.Shape.HLine)
@@ -190,7 +165,7 @@ class DBWindow(QWidget):
         self.operations.setCurrentText("Change Status")
         self.operations.currentIndexChanged.connect(self.update_options)
         operation_layout.addWidget(self.operations)
-        self.options = QComboBox(self)    
+        self.options = QComboBox(self)
         self.options.setPlaceholderText("Select Option")
         self.options.addItems(["CHECKIN","TESTED","SORTED","SHIPPED","REJECTED"])
         self.options.setCurrentText("REJECTED")
@@ -198,7 +173,7 @@ class DBWindow(QWidget):
         left_panel.addLayout(operation_layout)
         # Buttons
         button_layout = QHBoxLayout()
-        # change button 
+        # change button
         self.change_button = QPushButton("Change", self)
         self.change_button.clicked.connect(self.change)
         # close button
@@ -262,7 +237,7 @@ class DBWindow(QWidget):
         layout.addLayout(right_panel)
         self.validate_options()
         self.setLayout(layout)
-        
+
     def clear_layout(self, layout):
         if layout is not None:
             while layout.count():
@@ -276,7 +251,7 @@ class DBWindow(QWidget):
     def select_tray(self):
         warning_dialog = ""
         barcode = self.barcode.text().strip()
-        try:                
+        try:
             ECON_type = barcode.split('-')[0]
             tray_number = int(barcode.split('-')[-1])
             tray_exists = ((ECON_type == 'ECOND' and tray_number >= 10000) or (ECON_type == 'ECONT' and tray_number < 10000)) and self.locations_db.checkTrayExists(tray_number)
@@ -290,13 +265,15 @@ class DBWindow(QWidget):
             self.validate_options()
             return
 
+
         if tray_exists:
             df_tray = self.locations_db.getChipsInTray(tray_number)
             df_status = self.locations_db.getStatusForTray(tray_number)
             self.df = pd.merge(df_tray, df_status, on='chip_id', how='inner',suffixes=('_tray', '_status')).sort_values(by='current_position')
             qualities = []
+
             for chip_id,chip_type in zip(self.df['chip_id'],self.df['chip_type']):
-                chip_grade = self.grade_db.getChip(chip_id)
+                chip_grade = self.locations_db.getChipGrade(chip_id)
                 if chip_grade.empty:
                     qualities.append('Not Tested')
                 elif chip_type == "ECOND":
@@ -304,10 +281,12 @@ class DBWindow(QWidget):
                 else:
                     qualities.append(ECONT_grade_map[chip_grade.quality.iloc[-1]])
             self.df['quality']=qualities
+
             self.update_table(self.tray_table,self.df)
             self.barcode_display.setText(f"BARCODE: {barcode}")
             for button in self.chip_bottons:
                 button.setChecked(False)
+
             self.update_pick_buttons()
         else:
             warning_dialog = warning_dialog[:-2]  # Remove trailing comma and space
@@ -345,7 +324,7 @@ class DBWindow(QWidget):
             button.setText(f"{i+1}\nNo Chip")
             button.setStyleSheet('background-color: None')
         for _, row in self.df.iterrows():
-            i = row['current_position'] - 1 
+            i = row['current_position'] - 1
             button = self.chip_bottons[i]
             button.setEnabled(True)
             button.setText(f"{row['current_position']}\n{row['chip_id']}\n{Quality_Label_Map[row['quality']]}")
@@ -355,7 +334,7 @@ class DBWindow(QWidget):
 
         if self.palette.currentText() == "Quality": # Quality
             for _, row in self.df.iterrows():
-                i = row['current_position'] - 1 
+                i = row['current_position'] - 1
                 self.color_label[i] = row["quality"]
             n=0
             Quality_color_index_map={}
@@ -373,12 +352,12 @@ class DBWindow(QWidget):
                     self.color_map[quality]=(Color_Palletes[n][index],Quality_Label_Map[quality])
         elif self.palette.currentText() == "Entry Type":
             for _, row in self.df.iterrows():
-                i = row['current_position'] - 1 
+                i = row['current_position'] - 1
                 self.color_label[i] = row["entry_type"]
             self.color_map={key:value for key,value in Palette_Entry.items() if key in self.color_label}
         elif self.palette.currentText() == "Pass/Fail":
             for _, row in self.df.iterrows():
-                i = row['current_position'] - 1 
+                i = row['current_position'] - 1
                 button = self.chip_bottons[i]
                 if row['quality']=='Not Tested':
                     j = 'Not Tested'
@@ -422,37 +401,18 @@ class DBWindow(QWidget):
             self.color_map[key] = (color.name(), self.color_map[key][1])
             self.update_colors()
 
-    def open_loc_file_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
-        if file_path:
-            self.file_locations_db.setText(file_path)
-
-    def open_grade_file_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
-        if file_path:
-            self.file_grade_db.setText(file_path)
-
     def validate_options(self):
         # load database part
-        locations_db = self.file_locations_db.text()
-        locations_db_valid = os.path.exists(locations_db)
-        if not locations_db_valid:
-            self.locations_db_label.setText("Locations Database Files: <font color='red'>File Path Does Not Exist</font>")
-        else:
-            self.locations_db_label.setText("Locations Database Files:")
-        grade_db = self.file_grade_db.text()
-        grade_db_valid = os.path.exists(grade_db)
-        if not grade_db_valid:
-            self.grade_db_label.setText("Grade Database Files: <font color='red'>File Path Does Not Exist</font>")
-        else:
-            self.grade_db_label.setText("Grade Database Files:")
-        if grade_db_valid and locations_db_valid:
+        locations_db = self.host_locations_db.text()
+        locations_db_valid = True
+
+        if locations_db_valid:
             self.load_button.setEnabled(True)
         else:
             self.load_button.setEnabled(False)
-        
+
         # select tray part
-        databases_loaded = self.locations_db is not None and self.grade_db is not None
+        databases_loaded = self.locations_db is not None
         add_disable_reason = ""
         if not databases_loaded:
             add_disable_reason+="Databases not loaded. "
@@ -471,33 +431,27 @@ class DBWindow(QWidget):
         if self.df_picked.empty:
             change_disable_reason+="No chips to change. "
         elif not (self.df_picked['location']=='WH14').all():
-            change_disable_reason+="Picking chips not at Fermilab" 
+            change_disable_reason+="Picking chips not at Fermilab"
         if not change_disable_reason:
             self.change_button.setEnabled(True)
             self.change_disable_label.setText("")
-        else:   
+        else:
             self.change_button.setEnabled(False)
             self.change_disable_label.setText(f"<font color='red'>{change_disable_reason}</font>")
 
     def load_databases(self):
         try:
-            self.locations_db = LocationsDatabase(self.file_locations_db.text())
-            self.grade_db = grade_db = GradesDatabase(self.file_grade_db.text())
-            tables_in_locations_db = ["locations","status"]
-            tables_in_grade_db =["grades"]
-            for table in tables_in_locations_db:
-                query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
-                assert self.locations_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in location database:\n{self.file_locations_db.text()}"
+            self.locations_db = LocationsDatabase(self.host_locations_db.text())
+            tables_in_locations_db = ["locations","status","grades"]
+            # for table in tables_in_locations_db:
+            #     query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
+            #     assert self.locations_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in location database:\n{self.file_locations_db.text()}"
 
-            for table in tables_in_grade_db:
-                query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
-                assert self.grade_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in grade database:\n{self.file_grade_db.text()}"
 
             self.validate_options()
         except Exception as e:
             error_dialog = QMessageBox.critical(self,"Database Load Error",f"Error loading databases:\n{e}")
             self.locations_db = None
-            self.grade_db = None
 
     def update_options(self):
         self.options.clear()
@@ -515,7 +469,7 @@ class DBWindow(QWidget):
             self.change_grade()
         if self.operations.currentText() == "Change Location":
             self.change_location()
-    
+
     def change_status(self):
         if self.options.currentText() == "REJECTED":
             reject_diaglog = RejectSummaryAndConfirmDialog(self.df_picked,self.locations_db)
@@ -544,8 +498,8 @@ class DBWindow(QWidget):
     def close(self):
         if(self.locations_db!=None):
             self.locations_db.commitAndClose()
-        if(self.grade_db!=None):
-            self.grade_db.commitAndClose()
+        # if(self.grade_db!=None):
+        #     self.grade_db.commitAndClose()
         super().close()
 
 ## Dialog for chips to reject
@@ -641,7 +595,7 @@ class RejectSummaryAndConfirmDialog(QDialog):
         if fill_tray:
             ECON_ = self.destination_tray_all.text().split('-')[0]
             tray_ = int(self.destination_tray_all.text().split('-')[-1])
-        position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90 
+        position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90
         if fill_tray and fill_position:
             for tray,position in zip(self.destination_trays,self.destination_positions):
                 tray.setText(f'{ECON_}-{tray_ + (position_ // 90)}')
@@ -670,9 +624,9 @@ class RejectSummaryAndConfirmDialog(QDialog):
             for i,(_, row) in enumerate(self.df_picked.iterrows()):
                 _destination_tray_text = self.destination_trays[i].text()
                 _destination_tray_int = int(_destination_tray_text[6:]) if _destination_tray_text.startswith('ECON') else int(_destination_tray_text)
-                self.locations_db.setChipGrade(
+                self.locations_db.setChipGradeStatus(
                     chip_id=row['chip_id'],
-                    grade="Reject", 
+                    grade="Reject",
                     comments=self.comment.text(),
                     timestamp=timestamp)
                 self.locations_db.rejectChip(
@@ -776,7 +730,7 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
         if fill_tray:
             ECON_ = self.destination_tray_all.text().split('-')[0]
             tray_ = int(self.destination_tray_all.text().split('-')[-1])
-        position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90 
+        position_ = int(self.destination_position_all.text()) - 1 if fill_position else 0 # (n - 1) %90 + 1 to have things from 1 to 90
         if fill_tray and fill_position:
             for tray,position in zip(self.destination_trays,self.destination_positions):
                 tray.setText(f'{ECON_}-{tray_ + (position_ // 90)}')
