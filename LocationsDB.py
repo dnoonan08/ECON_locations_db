@@ -62,7 +62,7 @@ ECONT_grade_map = {1:'A',
 
 class LocationsDatabase:
     def __init__(self,address, RO=False):
-        self.engine = create_engine(f'postgresql://{address}:5432/econlocations')
+        self.engine = create_engine(f'postgresql://asic_robot_user@{address}:5432/econlocations')
         self.conn = self.engine.connect()
 
         metadata = MetaData()
@@ -250,17 +250,13 @@ class LocationsDatabase:
 
 
     def setChipGrade(self, chip_id, fraction, err_rate_0p99, err_rate_1p01, err_rate_1p03, err_rate_1p05, err_rate_1p08, err_rate_1p14, err_rate_1p20, err_rate_1p26, err_rate_1p32, quality, timestamp=None):
-        # sql_cmd_insert = '''INSERT INTO grades (barcode,position,fraction,"0.99V","1.01V","1.03V","1.05V","1.08V","1.14V","1.2V","1.26V","1.32V",quality,chip_id,time)
-        #                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
+
         chip_type='D' if chip_id>=1000000 else 'T'
         _barcode = f'ECON{chip_type}-{int(chip_id/100):05d}'
         _position = chip_id%100
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        data = (_barcode, _position, fraction, err_rate_0p99, err_rate_1p01, err_rate_1p03, err_rate_1p05, err_rate_1p08, err_rate_1p14, err_rate_1p20, err_rate_1p26, err_rate_1p32, quality, chip_id, timestamp)
-        self.cursor.execute(sql_cmd_insert,data)
 
         data = {
             "barcode": _barcode,
