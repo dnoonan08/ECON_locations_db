@@ -317,14 +317,14 @@ class LocationsDatabase:
 
                 #start buiding serial number
                 _serial = '320ICEC'
-                _serial += df.loc[chip_id].chip_type[-1:]
+                _serial += chip_data['chip_type'][-1:]
                 _serial += _grade
                 _serial += _lot
 
                 #count how many chips already have a serial number with the same grade and lot labels, increment by 1
                 # count the number of distinct chip_id values where serial number starts with the above, and then add 1
                 query = text(f"SELECT COUNT(DISTINCT chip_id) FROM status WHERE serial_number LIKE :serial")
-                N = self.conn.execute(query,{"serial":f"{_serial}%"}).scalar_one()
+                N = self.conn.execute(query,{"serial":f"{_serial}%"}).scalar_one()+1
 
                 _serial += f'{N:05d}'
                 _serial_number = _serial
