@@ -183,7 +183,28 @@ class LocationsDatabase:
         df_.time = pd.to_datetime(df_.time)
         df_.sort_values('time',inplace=True)
         keep = (df_.groupby('chip_id')['time'].idxmax())
-        return df_.loc[keep]
+        columns=["chip_id",
+                 "barcode",
+                 "position",
+                 "fraction",
+                 "0.93V",
+                 "0.95V",
+                 "0.97V",
+                 "0.99V",
+                 "1.01V",
+                 "1.03V",
+                 "1.05V",
+                 "1.08V",
+                 "1.14V",
+                 "1.2V",
+                 "1.26V",
+                 "1.32V",
+                 "quality",
+                 "time",
+                 "BIST",
+                 "Socket",
+                 "filename"]
+        return df_.loc[keep,columns]
 
     def getChip(self,chip_id):
         """Returns the data from a specific chip"""
@@ -249,7 +270,7 @@ class LocationsDatabase:
         self.conn.commit()
 
 
-    def setChipGrade(self, chip_id, fraction, err_rate_0p99, err_rate_1p01, err_rate_1p03, err_rate_1p05, err_rate_1p08, err_rate_1p14, err_rate_1p20, err_rate_1p26, err_rate_1p32, quality, timestamp=None):
+    def setChipGrade(self, chip_id, fraction, err_rate_0p93, err_rate_0p95, err_rate_0p97, err_rate_0p99, err_rate_1p01, err_rate_1p03, err_rate_1p05, err_rate_1p08, err_rate_1p14, err_rate_1p20, err_rate_1p26, err_rate_1p32, quality, timestamp=None, _bist=1.5, _socket="", _fname=""):
 
         chip_type='D' if chip_id>=1000000 else 'T'
         _barcode = f'ECON{chip_type}-{int(chip_id/100):05d}'
@@ -262,6 +283,9 @@ class LocationsDatabase:
             "barcode": _barcode,
             "position": _position,
             "fraction": fraction,
+            "0.93V": err_rate_0p93,
+            "0.95V": err_rate_0p95,
+            "0.97V": err_rate_0p97,
             "0.99V": err_rate_0p99,
             "1.01V": err_rate_1p01,
             "1.03V": err_rate_1p03,
@@ -274,6 +298,9 @@ class LocationsDatabase:
             "quality": quality,
             "chip_id": chip_id,
             "time": timestamp,
+            "BIST": _bist,
+            "Socket": _socket,
+            "bist": _fname,
         }
 
         stmt = insert(self.tables['grades']).values(data)
