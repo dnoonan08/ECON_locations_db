@@ -20,6 +20,7 @@ production_lot_map = {'N61H30.00':'A',
                       "N62A34 Wafs #17~18":'J',
                       "N62A34 Wafs #19":'K',
                       "N62A34 Wafs #20":'L',
+                      "N62S36.00":"M",
 }
 
 ECOND_grade_map = {15:'A', #0.89
@@ -300,7 +301,7 @@ class LocationsDatabase:
             "time": timestamp,
             "BIST": _bist,
             "Socket": _socket,
-            "bist": _fname,
+            "filename": _fname,
         }
 
         stmt = insert(self.tables['grades']).values(data)
