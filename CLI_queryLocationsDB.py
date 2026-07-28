@@ -69,7 +69,6 @@ def get_next_barcode(loc_db):
 @click.option("--xcs",is_flag=True, help="Generate XCS file for tray")
 @click.option("--sorting_tray_summary",is_flag=True, help="Get a summary for all sorting trays")
 @click.option("--locations_db", default="localhost", help="Address of locations database host.")
-#@click.option("--grades_db", default="/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/test_grade_database.db", help="File path for the grades database.")
 def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorting_tray_summary, locations_db):
 
     loc_db = LocationsDatabase(locations_db)
@@ -137,7 +136,24 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorti
             d = loc_db.getChipsInTray(tray)[['current_position','chip_id']].set_index('chip_id')
             d = d.merge(d_grade,left_index=True,right_index=True).reset_index().set_index('current_position')
             d.index.name = 'Tray Pos.'
-            print(d.sort_index())
+            pd.set_option('display.max_columns', None)
+            pd.set_option('display.width', 240)
+            columnList = ['chip_id',
+                          'fraction',
+                          '0.95V',
+                          '0.97V',
+                          '0.99V',
+                          '1.01V',
+                          '1.03V',
+                          '1.05V',
+                          '1.08V',
+                          '1.14V',
+                          '1.2V',
+                          'quality',
+                          'BIST',
+                          'time',
+                          ]
+            print(d.sort_index()[columnList])
             print(f'Total chips: {len(d)}')
             return
         else:
