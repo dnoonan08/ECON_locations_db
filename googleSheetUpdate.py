@@ -6,18 +6,13 @@ import pandas as pd
 import sys
 sys.path.append('..')
 from LocationsDB import LocationsDatabase
-from GradesDB import GradesDatabase
 
 from datetime import datetime, timedelta
-import os
 
-_cwd = os.path.dirname(os.path.abspath(__file__))
-
-loc_db = LocationsDatabase(f'{_cwd}/database_files/ECON_Locations_DB.db')
+loc_db = LocationsDatabase(f'localhost')
 df = loc_db.getCurrentLocations()
 
-grades_db = GradesDatabase(f'{_cwd}/database_files/test_grade_database.db')
-df_grades = grades_db.getCurrentGrades()
+df_grades = loc_db.getCurrentGrades()
 
 
 df = df.merge(df_grades[['chip_id','quality']],on='chip_id',how='outer').fillna(-1)

@@ -1,7 +1,3 @@
-.ipynb_checkpoints
-testingCSV/
-sorting_logs/
-__pycache__
 *~
-utils/*.csv
-utils/*.xml
+*.ipynb
+__pycache__

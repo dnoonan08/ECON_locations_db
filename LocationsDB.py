@@ -1,5 +1,6 @@
 import os
-import sqlite3
+from sqlalchemy import create_engine, insert, MetaData, text
+
 from datetime import datetime
 
 import pandas as pd
@@ -19,7 +20,11 @@ production_lot_map = {'N61H30.00':'A',
                       "N62A34 Wafs #17~18":'J',
                       "N62A34 Wafs #19":'K',
                       "N62A34 Wafs #20":'L',
-}
+                      "N62S36.00":"M",#Prod4 10Pct Run2
+#                      "":"N", #Metal fix 1
+#                      "":"O", #Metal fix 2
+#                      "N62V40.00":"P", #Prod5 10Pct Run 3
+                      }
 
 ECOND_grade_map = {15:'A', #0.89
                    14:'A', #0.91
@@ -60,56 +65,104 @@ ECONT_grade_map = {1:'A',
                    0:'X'}
 
 class LocationsDatabase:
-    def __init__(self,filename, RO=False):
-        if os.path.exists(filename):
-            self.conn = sqlite3.connect(filename, uri=RO)
-            self.cursor = self.conn.cursor()
-        else:
-            print("File Does Not Exists")
+    def __init__(self,address, RO=False):
+        self.engine = create_engine(f'postgresql://asic_robot_user@{address}:5432/econlocations')
+        self.conn = self.engine.connect()
+
+        metadata = MetaData()
+        metadata.reflect(bind=self.engine)
+        self.tables = metadata.tables
 
     def commitAndClose(self):
         self.conn.commit()
-        self.cursor.close()
         self.conn.close()
 
     def close(self):
-        self.cursor.close()
         self.conn.close()
 
     def checkin_chip(self,chip_id,chip_type,tray_number,chip_position,location,pkg_date,pkg_batch,status="",timestamp=None):
         """Add a new chip to the database"""
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        data = (chip_id,'CHECKIN',tray_number,chip_position,tray_number,chip_position,location,status,str(timestamp))
-        self.cursor.execute(sql_cmd_insert,data)
 
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
-        data = (chip_id,chip_type,pkg_date,pkg_batch,"","",str(timestamp),"","")
-        self.cursor.execute(sql_cmd_insert,data)
+        data = {
+            "chip_id": chip_id,
+            "entry_type": "CHECKIN",
+            "initial_tray": int(tray_number),
+            "initial_position": int(chip_position),
+            "current_tray": int(tray_number),
+            "current_position": int(chip_position),
+            "location": location,
+            "comments": status,
+            "time": str(timestamp)
+        }
+        stmt = insert(self.tables['locations']).values(data)
+
+        self.conn.execute(stmt)
+        self.conn.commit()
+
+
+        data = {
+            "chip_id": chip_id,
+            "chip_type": chip_type,
+            'pkg_date': pkg_date,
+            'pkg_batch': pkg_batch,
+            'grade': '',
+            'comments': '',
+            'time': str(timestamp),
+            'serial_number': '',
+            'shipment_note': '',
+        }
+        stmt = insert(self.tables['status']).values(data)
+
+        self.conn.execute(stmt)
+        self.conn.commit()
+
 
     def checkTrayExists(self,tray_number,tableName='locations'):
         """Does a chip with this id already exist in the database"""
-        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE initial_tray = ? OR current_tray = ?", (tray_number,tray_number,))
-        result = self.cursor.fetchone()
-        return result is not None
+        query = text(f"""
+        SELECT 1
+        FROM {tableName}
+        WHERE initial_tray = :tray_number
+        OR current_tray = :tray_number
+        """)
+
+        result = self.conn.execute(
+            query,
+            {"tray_number": tray_number}
+        )
+
+        return result.first() is not None
 
     def chipInDatabase(self,id_value,tableName='locations'):
         """Does a chip with this id already exist in the database"""
-        self.cursor.execute(f"SELECT 1 FROM {tableName} WHERE chip_id = ?", (id_value,))
-        result = self.cursor.fetchone()
-        return result is not None
+        query = text(f"""
+        SELECT 1
+        FROM {tableName}
+        WHERE chip_id = :chip_id
+        """)
+
+        result = self.conn.execute(
+            query,
+            {"chip_id": id_value}
+        )
+
+        return result.first() is not None
 
     def loadLocationsDatabase(self):
         """Load full database to a pandas dataframe"""
-        df_ = pd.read_sql_query("SELECT * from locations", self.conn)
+        df_ = pd.read_sql_query("SELECT * from locations", self.engine)
         return df_
 
     def loadStatusDatabase(self):
         """Load full database to a pandas dataframe"""
-        df = pd.read_sql_query("SELECT * from status", self.conn)
+        df = pd.read_sql_query("SELECT * from status", self.engine)
+        return df
+
+    def loadGradesDatabase(self):
+        """Load full database to a pandas dataframe"""
+        df = pd.read_sql_query("SELECT * from grades", self.engine)
         return df
 
     def getCurrentLocations(self):
@@ -128,6 +181,35 @@ class LocationsDatabase:
         keep = (df_.groupby('chip_id')['time'].idxmax())
         return df_.loc[keep]
 
+    def getCurrentGrades(self):
+        """Loads the database selecting only the latest grades when there are multiple values"""
+        df_ = self.loadGradesDatabase().reset_index(drop=True)
+        df_.time = pd.to_datetime(df_.time)
+        df_.sort_values('time',inplace=True)
+        keep = (df_.groupby('chip_id')['time'].idxmax())
+        columns=["chip_id",
+                 "barcode",
+                 "position",
+                 "fraction",
+                 "0.93V",
+                 "0.95V",
+                 "0.97V",
+                 "0.99V",
+                 "1.01V",
+                 "1.03V",
+                 "1.05V",
+                 "1.08V",
+                 "1.14V",
+                 "1.2V",
+                 "1.26V",
+                 "1.32V",
+                 "quality",
+                 "time",
+                 "BIST",
+                 "Socket",
+                 "filename"]
+        return df_.loc[keep,columns]
+
     def getChip(self,chip_id):
         """Returns the data from a specific chip"""
         return pd.read_sql_query(f"SELECT * FROM locations WHERE chip_id = {chip_id}",self.conn)
@@ -135,6 +217,10 @@ class LocationsDatabase:
     def getChipStatus(self,chip_id):
         """Returns the data from a specific chip"""
         return pd.read_sql_query(f"SELECT * FROM status WHERE chip_id = {chip_id}",self.conn)
+
+    def getChipGrade(self,chip_id):
+        """Returns the data from a specific chip"""
+        return pd.read_sql_query(f"SELECT * FROM grades WHERE chip_id = {chip_id}",self.conn)
 
     def checkPositionAlreadyFilled(self,new_tray,new_position):
         df_last = self.getCurrentLocations()
@@ -152,63 +238,125 @@ class LocationsDatabase:
         return hasConflicts
 
     def sortChip(self,chip_id,start_tray, start_position, new_tray, new_position,comments="",timestamp=None):
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
-
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        data = (chip_id,'SORTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
-        self.cursor.execute(sql_cmd_insert,data)
+        data = {
+            "chip_id": chip_id,
+            "entry_type": "SORTED",
+            "initial_tray": int(start_tray),
+            "initial_position": int(start_position),
+            "current_tray": int(new_tray),
+            "current_position": int(new_position),
+            "location": "WH14",
+            "comments": comments,
+            "time": timestamp
+        }
+        stmt = insert(self.tables['locations']).values(data)
+        self.conn.execute(stmt)
+        self.conn.commit()
 
     def setTestedStatus(self,chip_id,tray,position,comments="",timestamp=None):
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data = {
+            "chip_id": chip_id,
+            "entry_type": "TESTED",
+            "initial_tray": int(tray),
+            "initial_position": int(position),
+            "current_tray": int(tray),
+            "current_position": int(position),
+            "location": "WH14",
+            "comments": comments,
+            "time": timestamp
+        }
+        stmt = insert(self.tables['locations']).values(data)
+        self.conn.execute(stmt)
+        self.conn.commit()
+
+
+    def setChipGrade(self, chip_id, fraction, err_rate_0p93, err_rate_0p95, err_rate_0p97, err_rate_0p99, err_rate_1p01, err_rate_1p03, err_rate_1p05, err_rate_1p08, err_rate_1p14, err_rate_1p20, err_rate_1p26, err_rate_1p32, quality, timestamp=None, _bist=1.5, _socket="", _fname=""):
+
+        chip_type='D' if chip_id>=1000000 else 'T'
+        _barcode = f'ECON{chip_type}-{int(chip_id/100):05d}'
+        _position = chip_id%100
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        data = (chip_id,'TESTED',int(tray),int(position), int(tray),int(position),"WH14",comments,timestamp)
-        self.cursor.execute(sql_cmd_insert,data)
+        data = {
+            "barcode": _barcode,
+            "position": _position,
+            "fraction": fraction,
+            "0.93V": err_rate_0p93,
+            "0.95V": err_rate_0p95,
+            "0.97V": err_rate_0p97,
+            "0.99V": err_rate_0p99,
+            "1.01V": err_rate_1p01,
+            "1.03V": err_rate_1p03,
+            "1.05V": err_rate_1p05,
+            "1.08V": err_rate_1p08,
+            "1.14V": err_rate_1p14,
+            "1.2V": err_rate_1p20,
+            "1.26V": err_rate_1p26,
+            "1.32V": err_rate_1p32,
+            "quality": quality,
+            "chip_id": chip_id,
+            "time": timestamp,
+            "BIST": _bist,
+            "Socket": _socket,
+            "filename": _fname,
+        }
 
-    def setChipGrade(self,chip_id,grade,comments="",timestamp=None, set_serialnumber=False, grade_db=None):
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
+        stmt = insert(self.tables['grades']).values(data)
+        self.conn.execute(stmt)
+        self.conn.commit()
+
+
+    def setChipGradeStatus(self,chip_id,grade,comments="",timestamp=None, set_serialnumber=False):
+        # sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+        #                     VALUES(?,?,?,?,?,?,?,?,?) '''
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
-        chip_info = list(self.cursor.fetchone())
+        #get the most recent entry in status table for this chip
+        query = text(f"SELECT * FROM status WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+        chip_data = self.conn.execute(query,
+            {"chip_id": chip_id}
+        ).mappings().first()
 
-        df = self.getCurrentStatus().set_index('chip_id')
-
-        if not df.loc[chip_id].serial_number=="":
-            _serial_number = df.loc[chip_id].serial_number
+        if not chip_data['serial_number']=="":
+            _serial_number = chip_data['serial_number']
         elif set_serialnumber:
             isECOND = chip_id>1000000
             isECONT = chip_id<1000000
 
             try:
-                _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                #get the quality for the most recent entry for this chip_id
+                query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+                _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+
                 if isECOND:
                     _grade = ECOND_grade_map[_quality]
                 else:
                     _grade = ECONT_grade_map[_quality]
 
                 #get wafer production log grade
-                _lot = production_lot_map[df.loc[chip_id].pkg_batch]
+                _lot = production_lot_map[chip_data['pkg_batch']]
                 #get packaging date
-                _pkg_date = df.loc[chip_id].pkg_date
+                _pkg_date = chip_data['pkg_date']
 
                 #start buiding serial number
                 _serial = '320ICEC'
-                _serial += df.loc[chip_id].chip_type[-1:]
+                _serial += chip_data['chip_type'][-1:]
                 _serial += _grade
                 _serial += _lot
 
                 #count how many chips already have a serial number with the same grade and lot labels, increment by 1
-                N = df.serial_number.str.startswith(_serial).sum()+1
+                # count the number of distinct chip_id values where serial number starts with the above, and then add 1
+                query = text(f"SELECT COUNT(DISTINCT chip_id) FROM status WHERE serial_number LIKE :serial")
+                N = self.conn.execute(query,{"serial":f"{_serial}%"}).scalar_one()+1
+
                 _serial += f'{N:05d}'
                 _serial_number = _serial
             except:
@@ -217,32 +365,60 @@ class LocationsDatabase:
         else:
             _serial_number = ""
 
-        data = (chip_info[0],chip_info[1],chip_info[2],chip_info[3],grade,comments,str(timestamp),_serial_number,"")
-        self.cursor.execute(sql_cmd_insert,data)
+        data = dict(chip_data)
+        data['grade'] = grade
+        data['comments'] = comments
+        data['time'] = str(timestamp)
+        data['serial_number'] = _serial_number
+        data['shipment_note'] = ""
+
+        stmt = insert(self.tables['status']).values(data)
+
+        self.conn.execute(stmt)
+        self.conn.commit()
 
 
 
     def setChipLocation(self, chip_id, entry_type, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
-
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        data = {
+            "chip_id": chip_id,
+            "entry_type": entry_type,
+            "initial_tray": int(start_tray),
+            "initial_position": int(start_position),
+            "current_tray": int(new_tray),
+            "current_position": int(new_position),
+            "location": "WH14",
+            "comments": comments,
+            "time": timestamp
+        }
+        stmt = insert(self.tables['locations']).values(data)
+        self.conn.execute(stmt)
+        self.conn.commit()
 
-        data = (chip_id,entry_type,int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
-        self.cursor.execute(sql_cmd_insert,data)
 
     def insertChipSerialNumber(self,chip_id,serial_number,shipment_note="",timestamp=None):
-        sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
+        # sql_cmd_insert = '''INSERT INTO status (chip_id,chip_type,pkg_date,pkg_batch,grade,comments,time,serial_number,shipment_note)
+        #                     VALUES(?,?,?,?,?,?,?,?,?) '''
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        self.cursor.execute("SELECT * FROM status WHERE chip_id = ?",(chip_id,))
-        chip_info = list(self.cursor.fetchall()[-1])
-        data = chip_info[:6] + [str(timestamp),serial_number,shipment_note]
-        self.cursor.execute(sql_cmd_insert,data)
+        #get the most recent entry in status table for this chip
+        query = text(f"SELECT * FROM status WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+        chip_data = self.conn.execute(query,
+            {"chip_id": chip_id}
+        ).mappings().first()
+
+        data = dict(chip_data)
+        data['time'] = str(timestamp)
+        data['serial_number'] = serial_number
+        data['shipment_note'] = shipment_note
+
+        stmt = insert(self.tables['status']).values(data)
+        self.conn.execute(stmt)
+        self.conn.commit()
 
     def getStatusForTray(self,tray_number):
         chip_list = self.getChipsInTray(tray_number)[['current_position','chip_id']].set_index('chip_id')
@@ -254,16 +430,25 @@ class LocationsDatabase:
         return df_[df_.current_tray==tray_number]
 
     def rejectChip(self, chip_id, start_tray, start_position, new_tray, new_position, comments="", timestamp=None):
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
-
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        data = (chip_id,'REJECTED',int(start_tray),int(start_position), int(new_tray),int(new_position),"WH14",comments,timestamp)
-        self.cursor.execute(sql_cmd_insert,data)
+        data = {
+            "chip_id": chip_id,
+            "entry_type": "REJECTED",
+            "initial_tray": int(start_tray),
+            "initial_position": int(start_position),
+            "current_tray": int(new_tray),
+            "current_position": int(new_position),
+            "location": "WH14",
+            "comments": comments,
+            "time": timestamp
+        }
+        stmt = insert(self.tables['locations']).values(data)
+        self.conn.execute(stmt)
+        self.conn.commit()
 
-    def setChipSerialNumber(self, chip_id, grade_db, timestamp=None, is_preseries=False):
+    def setChipSerialNumber(self, chip_id, timestamp=None, is_preseries=False):
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -276,7 +461,9 @@ class LocationsDatabase:
         isECOND = chip_id>1000000
         isECONT = chip_id<1000000
 
-        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+        query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+        _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+
         if isECOND:
             _grade = ECOND_grade_map[_quality]
             _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
@@ -307,7 +494,7 @@ class LocationsDatabase:
         df.loc[chip_id,'serial_number'] = _serial
         self.insertChipSerialNumber(chip_id,_serial,"",timestamp)
 
-    def setTraySerialNumber(self, trays, grade_db, timestamp=None, is_preseries=False):
+    def setTraySerialNumber(self, trays, timestamp=None, is_preseries=False):
 
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -339,7 +526,9 @@ class LocationsDatabase:
                             _voltage_str=''
                             _voltage_comment=''
                         else:
-                            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                            query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+                            _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+
                             _grade = ECOND_grade_map[_quality]
                             _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
                             _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
@@ -351,7 +540,9 @@ class LocationsDatabase:
                         _voltage_comment = 'Possibly untested chip'
                 else:
                     try:
-                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                        query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+                        _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+
                         _grade = ECONT_grade_map[_quality]
                         _voltage_str = ''
                         _voltage_comment = ''
@@ -425,9 +616,9 @@ class LocationsDatabase:
 
         return fname
 
-    def shipTraysAndGenerateUploadCSV(self, trays, destination, grade_db, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
-        sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
-                            VALUES(?,?,?,?,?,?,?,?,?) '''
+    def shipTraysAndGenerateUploadCSV(self, trays, destination, shipment_number=0, shipment_note="", timestamp=None, is_preseries=False):
+        # sql_cmd_insert = '''INSERT INTO locations (chip_id,entry_type,initial_tray,initial_position,current_tray,current_position,location,comments,time)
+        #                     VALUES(?,?,?,?,?,?,?,?,?) '''
 
         csvFileName = f'ECON_upload_{shipment_number:04d}.csv'
         _csvFile = open(csvFileName,'w')
@@ -468,7 +659,9 @@ class LocationsDatabase:
                             _voltage_str=''
                             _voltage_comment=''
                         else:
-                            _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                            query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+                            _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+
                             _grade = ECOND_grade_map[_quality]
                             _voltage_str = f'-{qualToVoltage[_quality]:.2f}'
                             _voltage_comment = f"; passing at {qualToVoltage[_quality]:.2f}V"
@@ -480,7 +673,9 @@ class LocationsDatabase:
                         _voltage_comment = 'Possibly untested chip'
                 else:
                     try:
-                        _quality = grade_db.getChip(chip_id).quality.iloc[-1]
+                        query = text(f"SELECT quality FROM grades WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+                        _quality = self.conn.execute(query,{'chip_id':chip_id}).mappings().first()['quality']
+
                         _grade = ECONT_grade_map[_quality]
                         _voltage_str = ''
                         _voltage_comment = ''
@@ -495,16 +690,20 @@ class LocationsDatabase:
 
                 full_chip_list.append(_serial)
                 #update the locations database with the shipment
-                data = (chip_id,
-                        'SHIPPED',
-                        _chip.current_tray,
-                        _chip.current_position,
-                        _chip.current_tray,
-                        _chip.current_position,
-                        destination,
-                        _chip.comments,
-                        timestamp)
-                self.cursor.execute(sql_cmd_insert,data)
+                data = {
+                    "chip_id": chip_id,
+                    "entry_type": "SHIPPED",
+                    "initial_tray": int(_chip.current_tray),
+                    "initial_position": int(_chip.current_position),
+                    "current_tray": int(_chip.current_tray),
+                    "current_position": int(_chip.current_position),
+                    "location": destination,
+                    "comments": _chip.comments,
+                    "time": timestamp
+                }
+                stmt = insert(self.tables['locations']).values(data)
+                self.conn.execute(stmt)
+                self.conn.commit()
 
                 #re-uses setChipSerialNumber function, just to record shipment note
                 self.insertChipSerialNumber(chip_id,_serial,shipment_note,timestamp)
@@ -526,7 +725,7 @@ class LocationsDatabase:
                     BATCH_NUMBER = f'{shipment_number:04d}-PS-{_tray_number:05d}'
                 BARCODE = _serial
                 NAME_LABEL = f'ECON-{T_D}{_voltage_str}-{chip_id:07d}'
-                LOCATION = "FNAL Wilson Hall"
+                LOCATION = "FNAL"
                 INSTITUTION = "Fermi National Accelerator Lab."
                 COMMENT_DESCRIPTION = f"ECON-{T_D} chip; FNAL chip ID {chip_id:07d} {_voltage_comment} {shipment_note}"
                 COMMENT_DESCRIPTION = COMMENT_DESCRIPTION.replace(',',';') #replace any accidental commas with semicolons to avoid issues with CSV

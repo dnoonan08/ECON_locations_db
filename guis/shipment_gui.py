@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
 from PyQt6.QtWidgets import (
-    QApplication, 
-    QWidget, 
-    QVBoxLayout, 
-    QLineEdit, 
-    QComboBox, 
-    QPushButton, 
-    QLabel, 
-    QHBoxLayout, 
-    QSpinBox, 
-    QTableWidget, 
-    QTableWidgetItem, 
-    QFileDialog, 
-    QListWidget, 
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QLineEdit,
+    QComboBox,
+    QPushButton,
+    QLabel,
+    QHBoxLayout,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QFileDialog,
+    QListWidget,
     QMessageBox,
     QFrame,
     QDialogButtonBox
@@ -25,7 +25,6 @@ from collections import Counter
 import sys
 sys.path.append('.')
 from LocationsDB import LocationsDatabase,ECOND_grade_map,ECONT_grade_map
-from GradesDB import GradesDatabase
 
 # Main window
 class ShipmentWindow(QWidget):
@@ -38,40 +37,18 @@ class ShipmentWindow(QWidget):
         # Variables
         self.tray_list = set()
         self.locations_db = None
-        self.grade_db = None
 
         # Data base initialization
         # Locations DB
-        self.file_locations_db = QLineEdit(self)
-        self.file_locations_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/ECON_Locations_DB.db')
-        self.file_locations_db.textChanged.connect(self.validate_options)
+        self.host_locations_db = QLineEdit(self)
+        self.host_locations_db.setText('fasic-chiptest.fnal.gov')
+        self.host_locations_db.textChanged.connect(self.validate_options)
 
-        self.loc_button = QPushButton("Browse Files", self)
-        self.loc_button.clicked.connect(self.open_loc_file_dialog)
-        self.loc_button.setFixedWidth(100)
 
-        self.locations_db_label = QLabel('Locations Database File:')
+        self.locations_db_label = QLabel('Locations Database Host:')
         layout.addWidget(self.locations_db_label)
-        loc_layout = QHBoxLayout()
-        loc_layout.addWidget(self.loc_button)
-        loc_layout.addWidget(self.file_locations_db)
-        layout.addLayout(loc_layout)
+        layout.addWidget(self.host_locations_db)
 
-        # Grade DB
-        self.file_grade_db = QLineEdit(self)
-        self.file_grade_db.setText('/asic/projects/E/ECON_PROD_TESTING/ECON_locations_db/database_files/test_grade_database.db')
-        self.file_grade_db.textChanged.connect(self.validate_options)
-
-        self.grade_button = QPushButton("Browse Files", self)
-        self.grade_button.clicked.connect(self.open_grade_file_dialog)
-        self.grade_button.setFixedWidth(100)
-
-        self.grade_db_label = QLabel('Grade Database File:')
-        layout.addWidget(self.grade_db_label)
-        grade_layout = QHBoxLayout()
-        grade_layout.addWidget(self.grade_button)
-        grade_layout.addWidget(self.file_grade_db)
-        layout.addLayout(grade_layout)
         # Button
         self.load_button = QPushButton("Load Databases", self)
         self.load_button.clicked.connect(self.load_databases)
@@ -103,7 +80,7 @@ class ShipmentWindow(QWidget):
         layout.addWidget(self.add_disable_reason_label)
         # Buttons
         button_layout = QHBoxLayout()
-        # Add Button 
+        # Add Button
         self.add_button = QPushButton("Add", self)
         self.add_button.clicked.connect(self.append_barcode)
         button_layout.addWidget(self.add_button)
@@ -168,27 +145,21 @@ class ShipmentWindow(QWidget):
         ECOND_qualities = []
         ECONT_qualities = []
         self.tray_list_widget.clear()
+        d_grade = self.locations_db.getCurrentGrades().set_index('chip_id')
         for tray in sorted(self.tray_list):
             ECON_type = tray.split('-')[0]
             self.tray_list_widget.addItem(tray)
             tray_number = int(tray.split('-')[-1])
             chips = self.locations_db.getChipsInTray(tray_number)
-            if(ECON_type == 'ECOND'):
-                qualities=[]
-                for chip in chips.itertuples():
-                    if(self.grade_db.getChip(chip.chip_id).empty):
-                        qualities.append("Not Tested")
-                    else:
-                        qualities.append(ECOND_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
-                ECOND_qualities+=qualities
+            chip_ids = [c.chip_id for c in chips.itertuples()]
+            qualities = d_grade.loc[chip_ids].quality.values
+            if ECON_type=='ECOND':
+                grades=[ECOND_grade_map[q] for q in qualities]
+                ECOND_qualities += grades
             elif(ECON_type == 'ECONT'):
-                qualities=[]
-                for chip in chips.itertuples():
-                    if(self.grade_db.getChip(chip.chip_id).empty):
-                        qualities.append("Not Tested")
-                    else:
-                        qualities.append(ECONT_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
-                ECONT_qualities+=qualities
+                grades=[ECONT_grade_map[q] for q in qualities]
+                ECONT_qualities += grades
+
         counted_ECOND_qualities = sorted(Counter(ECOND_qualities).items(), reverse=True)
         counted_ECONT_qualities = sorted(Counter(ECONT_qualities).items(), reverse=True)
         self.grade_list_widget.clear()
@@ -201,7 +172,7 @@ class ShipmentWindow(QWidget):
             for q, c in counted_ECONT_qualities:
                 self.grade_list_widget.addItem(f"{q}:\t{c}")
         self.validate_options()
-        
+
 
     def append_barcode(self):
         ignore_different_grades=False
@@ -209,30 +180,22 @@ class ShipmentWindow(QWidget):
         ignore_not_tested=False
         skip_not_tested=False
         warning_dialog = ""
+        d_grade = self.locations_db.getCurrentGrades().set_index('chip_id')
         for barcode in self.barcodes.text().split(','):
             barcode = barcode.strip()
-            try:                
+            try:
                 ECON_type = barcode.split('-')[0]
                 tray_number = int(barcode.split('-')[-1])
                 tray_exists = ((ECON_type == 'ECOND' and tray_number >= 10000) or (ECON_type == 'ECONT' and tray_number < 10000)) and self.locations_db.checkTrayExists(tray_number)
                 chips = self.locations_db.getChipsInTray(tray_number)
-                qualities=[]
-                chip_id_not_tested=[]
-                if(ECON_type == 'ECOND'):
-                    for chip in chips.itertuples():
-                        if(self.grade_db.getChip(chip.chip_id).empty):
-                            qualities.append("Not Tested")
-                            chip_id_not_tested.append(chip.chip_id)
-                        else:
-                            qualities.append(ECOND_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
+                chip_ids = [c.chip_id for c in chips.itertuples()]
+                qualities = d_grade.loc[chip_ids].quality.values
+                if ECON_type=='ECOND':
+                    grades=[ECOND_grade_map[q] for q in qualities]
                 elif(ECON_type == 'ECONT'):
-                    for chip in chips.itertuples():
-                        if(self.grade_db.getChip(chip.chip_id).empty):
-                            qualities.append("Not Tested")
-                            chip_id_not_tested.append(chip.chip_id)
-                        else:
-                            qualities.append(ECONT_grade_map[self.grade_db.getChip(chip.chip_id).quality.iloc[-1]])
-                counted_qualities = sorted(Counter(qualities).items(), reverse=True)
+                    grades=[ECONT_grade_map[q] for q in qualities]
+
+                counted_qualities = sorted(Counter(grades).items(), reverse=True)
             except Exception as e:
                 error_dialog = QMessageBox.critical(self,
                 "Error",
@@ -285,7 +248,9 @@ class ShipmentWindow(QWidget):
             "Tray(s) not Found",
             f"The following tray(s) do not exist in the locations database:\n{warning_dialog}")
         self.barcodes.clear()
+        print('HERE')
         self.update_tray_list()
+        print('HERE')
 
     def remove_barcode(self):
         for barcode in self.barcodes.text().split(','):
@@ -309,7 +274,6 @@ class ShipmentWindow(QWidget):
                     trays=list(int(barcode.split('-')[-1]) for barcode in self.tray_list),
                     # trays=list(self.tray_list),
                     destination=self.destination.text(),
-                    grade_db = self.grade_db,
                     shipment_number = self.shipment_number.value(),
                     shipment_note =  self.shipnote.text()
                 )
@@ -324,36 +288,31 @@ class ShipmentWindow(QWidget):
         else:
             pass
 
-    
-    def open_loc_file_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
-        if file_path:
-            self.file_locations_db.setText(file_path)
 
-    def open_grade_file_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
-        if file_path:
-            self.file_grade_db.setText(file_path)
+    # def open_loc_file_dialog(self):
+    #     file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
+    #     if file_path:
+    #         self.file_locations_db.setText(file_path)
+
+    # def open_grade_file_dialog(self):
+    #     file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "database_files/","Database file (*db)")
+    #     if file_path:
+    #         self.file_grade_db.setText(file_path)
 
     def validate_options(self):
-        locations_db = self.file_locations_db.text()
-        locations_db_valid = os.path.exists(locations_db)
+        locations_db = self.host_locations_db.text()
+        locations_db_valid = True
         if not locations_db_valid:
-            self.locations_db_label.setText("Locations Database Files: <font color='red'>File Path Does Not Exist</font>")
+            self.locations_db_label.setText("Locations Database Host: <font color='red'>File Path Does Not Exist</font>")
         else:
-            self.locations_db_label.setText("Locations Database Files:")
-        grade_db = self.file_grade_db.text()
-        grade_db_valid = os.path.exists(grade_db)
-        if not grade_db_valid:
-            self.grade_db_label.setText("Grade Database Files: <font color='red'>File Path Does Not Exist</font>")
-        else:
-            self.grade_db_label.setText("Grade Database Files:")
-        if grade_db_valid and locations_db_valid:
+            self.locations_db_label.setText("Locations Database Host:")
+
+        if locations_db_valid:
             self.load_button.setEnabled(True)
         else:
             self.load_button.setEnabled(False)
-        
-        databases_loaded = self.locations_db is not None and self.grade_db is not None
+
+        databases_loaded = self.locations_db is not None
         add_remove_disable_reason = ""
         if not databases_loaded:
             add_remove_disable_reason+="Databases not loaded. "
@@ -377,37 +336,28 @@ class ShipmentWindow(QWidget):
         if not ship_disable_reason:
             self.ship_disable_reason_label.setText("")
             self.ship_button.setEnabled(True)
-        else:   
+        else:
             self.ship_button.setEnabled(False)
             self.ship_disable_reason_label.setText(f"<font color='red'>{ship_disable_reason}</font>")
-        
+
     def load_databases(self):
         try:
-            self.locations_db = LocationsDatabase(self.file_locations_db.text())
-            self.grade_db = grade_db = GradesDatabase(self.file_grade_db.text())
-            tables_in_locations_db = ["locations","status"]
-            tables_in_grade_db =["grades"]
-            for table in tables_in_locations_db:
-                query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
-                assert self.locations_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in location database:\n{self.file_locations_db.text()}"
-
-            for table in tables_in_grade_db:
-                query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
-                assert self.grade_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in grade database:\n{self.file_grade_db.text()}"
+            self.locations_db = LocationsDatabase(self.host_locations_db.text())
+            # tables_in_locations_db = ["locations","status","grades"]
+            # for table in tables_in_locations_db:
+            #     query = f"""SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"""
+            #     assert self.locations_db.cursor.execute(query).fetchone(),f"Table \"{table}\" not found in location database:\n{self.file_locations_db.text()}"
 
             self.validate_options()
         except Exception as e:
             error_dialog = QMessageBox.critical(self,"Database Load Error",f"Error loading databases:\n{e}")
             self.locations_db = None
-            self.grade_db = None
 
     def close(self):
         if(self.locations_db!=None):
             self.locations_db.commitAndClose()
-        if(self.grade_db!=None):
-            self.grade_db.commitAndClose()
         super().close()
-    
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = ShipmentWindow()
