@@ -20,8 +20,11 @@ production_lot_map = {'N61H30.00':'A',
                       "N62A34 Wafs #17~18":'J',
                       "N62A34 Wafs #19":'K',
                       "N62A34 Wafs #20":'L',
-                      "N62S36.00":"M",
-}
+                      "N62S36.00":"M",#Prod4 10Pct Run2
+#                      "":"N", #Metal fix 1
+#                      "":"O", #Metal fix 2
+#                      "N62V40.00":"P", #Prod5 10Pct Run 3
+                      }
 
 ECOND_grade_map = {15:'A', #0.89
                    14:'A', #0.91
@@ -722,7 +725,7 @@ class LocationsDatabase:
                     BATCH_NUMBER = f'{shipment_number:04d}-PS-{_tray_number:05d}'
                 BARCODE = _serial
                 NAME_LABEL = f'ECON-{T_D}{_voltage_str}-{chip_id:07d}'
-                LOCATION = "FNAL Wilson Hall"
+                LOCATION = "FNAL"
                 INSTITUTION = "Fermi National Accelerator Lab."
                 COMMENT_DESCRIPTION = f"ECON-{T_D} chip; FNAL chip ID {chip_id:07d} {_voltage_comment} {shipment_note}"
                 COMMENT_DESCRIPTION = COMMENT_DESCRIPTION.replace(',',';') #replace any accidental commas with semicolons to avoid issues with CSV
