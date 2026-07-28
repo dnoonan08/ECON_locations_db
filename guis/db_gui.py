@@ -97,7 +97,7 @@ class DBWindow(QWidget):
         # Data base initialization
         # Locations DB
         self.host_locations_db = QLineEdit(self)
-        self.host_locations_db.setText('cmsnghcal01.fnal.gov')
+        self.host_locations_db.setText('fasic-chiptest.fnal.gov')
         self.host_locations_db.textChanged.connect(self.validate_options)
 
         self.locations_db_label = QLabel('Locations Database Host:')

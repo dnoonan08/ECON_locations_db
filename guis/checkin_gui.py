@@ -132,6 +132,7 @@ class ECONCheckinWidget(QWidget):
         self.wafer_lot.setPlaceholderText("Select Wafer Lot")
         self.wafer_lot.addItems(["N61H30.00",
                                  "N61H52.00",
+                                 "N62S36.00",#Prod4 10Pct Run2
                                  "NCTA61 Wafs All",
                                  "N62A34 Wafs #2~3:5",
                                  "N62A34 Wafs #7~11",
@@ -151,7 +152,7 @@ class ECONCheckinWidget(QWidget):
 
         # Point to host name for the database
         self.locations_db_host = QLineEdit(self)
-        self.locations_db_host.setText('cmsnghcal01.fnal.gov')
+        self.locations_db_host.setText('fasic-chiptest.fnal.gov')
         self.locations_db_host.textChanged.connect(self.validate_options) #validate the selections
 
         self.locations_db_label = QLabel('Locations Database Host:')
