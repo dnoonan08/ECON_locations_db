@@ -133,6 +133,8 @@ class ECONCheckinWidget(QWidget):
         self.wafer_lot.addItems(["N61H30.00",
                                  "N61H52.00",
                                  "N62S36.00",#Prod4 10Pct Run2
+                                 "N61H52.05 TMTV53B",#Multi Pad Metal Fix
+                                 "N61H52.0V TMTV53C",#Single Core Metal Fix
                                  "NCTA61 Wafs All",
                                  "N62A34 Wafs #2~3:5",
                                  "N62A34 Wafs #7~11",
@@ -234,6 +236,25 @@ class ECONCheckinWidget(QWidget):
             except:
                 #if no value in barcode, or it fails the integer casting
                 barcode_wafer_match = False
+
+
+        #metal fix chips
+        elif 'TMTV53' in self.wafer_lot.currentText():
+            try:
+                barcode_number_group = int(self.barcode_text.text()[7:9])
+                print(barcode_number_group)
+                print(self.wafer_lot.currentText())
+                if barcode_number_group==67 and self.wafer_lot.currentText()!="N61H52.05 TMTV53B": #Multi Pin Metal Fix
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N61H52.05 TMTV53B'</font>")
+                    barcode_wafer_match = False
+                if barcode_number_group==68 and self.wafer_lot.currentText()!="N61H52.0V TMTV53C": #Single Core Metal Fix
+                    self.error_label.setText(f"<font color='red' size=3>Tray barcode number {_barcode} does not match the selected wafer lot type {self.wafer_lot.currentText()}, expected to be 'N61H52.0V TMTV53C'</font>")
+                    barcode_wafer_match = False
+            except:
+                #if no value in barcode, or it fails the integer casting
+                barcode_wafer_match = False
+
+        #All other chips
         else:
             try:
                 barcode_number_group = int(self.barcode_text.text()[7:9])

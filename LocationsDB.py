@@ -21,8 +21,8 @@ production_lot_map = {'N61H30.00':'A',
                       "N62A34 Wafs #19":'K',
                       "N62A34 Wafs #20":'L',
                       "N62S36.00":"M",#Prod4 10Pct Run2
-#                      "":"N", #Metal fix 1
-#                      "":"O", #Metal fix 2
+                      "N61.H52.05 TMTV53B":"N", #Metal fix 1 - Multi pin
+                      "N61.H52.0V TMTV53C":"O", #Metal fix 2 - Single Core
 #                      "N62V40.00":"P", #Prod5 10Pct Run 3
                       }
 
