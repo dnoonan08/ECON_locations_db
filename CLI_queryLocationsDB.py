@@ -67,9 +67,9 @@ def get_next_barcode(loc_db):
 @click.option("--status",is_flag=True, help="Get the status table for a given chip or tray")
 @click.option("--grade",is_flag=True, help="Get the grades table for a given chip or tray")
 @click.option("--xcs",is_flag=True, help="Generate XCS file for tray")
-@click.option("--sorting_tray_summary",is_flag=True, help="Get a summary for all sorting trays")
-@click.option("--locations_db", default="localhost", help="Address of locations database host.")
-def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorting_tray_summary, locations_db):
+@click.option("--sorting",is_flag=True, help="Get a summary for all sorting trays")
+@click.option("--locations_db", default="fasic-chiptest.fnal.gov", help="Address of locations database host.")
+def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorting, locations_db):
 
     loc_db = LocationsDatabase(locations_db)
 
@@ -167,20 +167,23 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorti
         print(f'Total chips: {len(d)}')
         return
 
-    if sorting_tray_summary:
-        d = loc_db.getCurrentLocations()
-        tray_list = d.current_tray.unique()
-        tray_list.sort()
+    if sorting:
+        df_grades = loc_db.getCurrentGrades().set_index('chip_id')
+        df = loc_db.getCurrentLocations().set_index('chip_id')
+        from LocationsDB import ECOND_grade_map, ECONT_grade_map
 
-        print('ECON-T')
-        for t in tray_list[((tray_list>8000) & (tray_list<10000))]:
-            d = loc_db.getStatusForTray(t)
-            print(f"Tray number {t:05d}: {len(d):02d} chips with grade {'/'.join(d.grade.unique())}")
-        print('-'*40)
-        print('ECON-D')
-        for t in tray_list[((tray_list>18000) & (tray_list<20000))]:
-            d = loc_db.getStatusForTray(t)
-            print(f"Tray number {t:05d}: {len(d):02d} chips with grade {'/'.join((d.grade.str[:] +' '+ d.comments.str[:]).unique())}")
+        df.loc[1000000:,'Grade'] = df_grades.loc[1000000:].quality.map(ECOND_grade_map)
+        df.loc[:1000000,'Grade'] = df_grades.loc[:1000000].quality.map(ECONT_grade_map)
+
+        d = df.groupby(['current_tray','Grade'])[['entry_type']].count().reset_index().pivot(index='current_tray',columns='Grade',values='entry_type').fillna(0).astype(int)
+        d['H'] = d[['H','K','Q','W','X','Y']].sum(axis=1)
+        d = d[['A','B','D','F','H']].copy(deep=True)
+        d.columns = ['A','B','D','F','Fail']
+        d['location'] = df[['current_tray','location']].drop_duplicates().set_index('current_tray')[['location']]
+
+        print('ECON-D trays to be sorted')
+        print(d[(d[['A','B','D','F']].sum(axis=1)>0) & (d.location=='WH14')].loc[10000:16500])
+
 
 if __name__=="__main__":
     main()
