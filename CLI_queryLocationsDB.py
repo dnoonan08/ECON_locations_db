@@ -67,9 +67,10 @@ def get_next_barcode(loc_db):
 @click.option("--status",is_flag=True, help="Get the status table for a given chip or tray")
 @click.option("--grade",is_flag=True, help="Get the grades table for a given chip or tray")
 @click.option("--xcs",is_flag=True, help="Generate XCS file for tray")
-@click.option("--sorting",is_flag=True, help="Get a summary for all sorting trays")
+@click.option("--to_sort",is_flag=True, help="Get a summary for all trays to be sorted")
+@click.option("--sorted",is_flag=True, help="Get a summary for all trays that have been sorted")
 @click.option("--locations_db", default="fasic-chiptest.fnal.gov", help="Address of locations database host.")
-def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorting, locations_db):
+def main(tray, chip, get_next_tray, location, history, status, grade, xcs, to_sort, sorted, locations_db):
 
     loc_db = LocationsDatabase(locations_db)
 
@@ -167,7 +168,7 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorti
         print(f'Total chips: {len(d)}')
         return
 
-    if sorting:
+    if to_sort or sorted:
         df_grades = loc_db.getCurrentGrades().set_index('chip_id')
         df = loc_db.getCurrentLocations().set_index('chip_id')
         from LocationsDB import ECOND_grade_map, ECONT_grade_map
@@ -181,8 +182,30 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, sorti
         d.columns = ['A','B','D','F','Fail']
         d['location'] = df[['current_tray','location']].drop_duplicates().set_index('current_tray')[['location']]
 
-        print('ECON-D trays to be sorted')
-        print(d[(d[['A','B','D','F']].sum(axis=1)>0) & (d.location=='WH14')].loc[10000:16500])
+        if to_sort:
+            print('ECON-D trays to be sorted')
+            print(d[(d[['A','B','D','F']].sum(axis=1)>0) & (d.location=='WH14')].loc[10000:16500])
+        else:
+            sortedTrays = d[(d[['A','B','D','F']].sum(axis=1)==90) & (d.location=='WH14')].loc[18000:19000]
+            _a=list(sortedTrays.index[sortedTrays.values[:,0]==90])
+            _b=list(sortedTrays.index[sortedTrays.values[:,1]==90])
+            _d=list(sortedTrays.index[sortedTrays.values[:,2]==90])
+            _f=list(sortedTrays.index[sortedTrays.values[:,3]==90])
+
+            partials = d[(d.Fail==0)&(d[['A','B','D','F']].sum(axis=1)<90)&(d.location=='WH14')].loc[18030:18999]
+            partial_a = list(partials.index[partials.values[:,0]>0])[-1]
+            partial_b = list(partials.index[partials.values[:,1]>0])[-1]
+            partial_d = list(partials.index[partials.values[:,2]>0])[-1]
+            partial_f = list(partials.index[partials.values[:,3]>0])[-1]
+
+            print(f'Grade A: {len(_a)} Tray{"s" if len(_a)>1 else " "} - {_a}')
+            print(f'Grade B: {len(_b)} Tray{"s" if len(_b)>1 else " "} - {_b}')
+            print(f'Grade D: {len(_d)} Tray{"s" if len(_d)>1 else " "} - {_d}')
+            print(f'Grade F: {len(_f)} Tray{"s" if len(_f)>1 else " "} - {_f}')
+
+            print()
+            print('Partial Trays')
+            print(f'    A: {partial_a}, B: {partial_b}, D: {partial_d}, F: {partial_f}')
 
 
 if __name__=="__main__":
