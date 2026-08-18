@@ -127,8 +127,8 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, to_so
             return
 
     if grade:
-        d_grade = loc_db.getCurrentGrades().set_index('chip_id')
         if chip!=0:
+            d_grade = loc_db.loadGradesDatabase().set_index('chip_id')
             print(d_grade.loc[chip])
             return
         elif tray!=0:
@@ -177,35 +177,38 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, to_so
         df.loc[:1000000,'Grade'] = df_grades.loc[:1000000].quality.map(ECONT_grade_map)
 
         d = df.groupby(['current_tray','Grade'])[['entry_type']].count().reset_index().pivot(index='current_tray',columns='Grade',values='entry_type').fillna(0).astype(int)
-        d['H'] = d[['H','K','Q','W','X','Y']].sum(axis=1)
-        d = d[['A','B','D','F','H']].copy(deep=True)
-        d.columns = ['A','B','D','F','Fail']
+        d['K'] = d[['K','Q','W','X','Y']].sum(axis=1)
+        d = d[['A','B','D','F','H','K']].copy(deep=True)
+        d.columns = ['A','B','D','F','H','Fail']
         d['location'] = df[['current_tray','location']].drop_duplicates().set_index('current_tray')[['location']]
 
         if to_sort:
             print('ECON-D trays to be sorted')
             print(d[(d[['A','B','D','F']].sum(axis=1)>0) & (d.location=='WH14')].loc[10000:16500])
         else:
-            sortedTrays = d[(d[['A','B','D','F']].sum(axis=1)==90) & (d.location=='WH14')].loc[18000:19000]
+            sortedTrays = d[(d[['A','B','D','F','H']].sum(axis=1)==90) & (d.location=='WH14')].loc[18000:19000]
             _a=list(sortedTrays.index[sortedTrays.values[:,0]==90])
             _b=list(sortedTrays.index[sortedTrays.values[:,1]==90])
             _d=list(sortedTrays.index[sortedTrays.values[:,2]==90])
             _f=list(sortedTrays.index[sortedTrays.values[:,3]==90])
+            _h=list(sortedTrays.index[sortedTrays.values[:,4]==90])
 
             partials = d[(d.Fail==0)&(d[['A','B','D','F']].sum(axis=1)<90)&(d.location=='WH14')].loc[18030:18999]
-            partial_a = list(partials.index[partials.values[:,0]>0])[-1]
-            partial_b = list(partials.index[partials.values[:,1]>0])[-1]
-            partial_d = list(partials.index[partials.values[:,2]>0])[-1]
-            partial_f = list(partials.index[partials.values[:,3]>0])[-1]
+            partial_a = list(partials.index[partials.values[:,0]>0])[-1] if partials.values[:,0].sum()>0 else []
+            partial_b = list(partials.index[partials.values[:,1]>0])[-1] if partials.values[:,1].sum()>0 else []
+            partial_d = list(partials.index[partials.values[:,2]>0])[-1] if partials.values[:,2].sum()>0 else []
+            partial_f = list(partials.index[partials.values[:,3]>0])[-1] if partials.values[:,3].sum()>0 else []
+            partial_h = list(partials.index[partials.values[:,4]>0])[-1] if partials.values[:,4].sum()>0 else []
 
             print(f'Grade A: {len(_a)} Tray{"s" if len(_a)>1 else " "} - {_a}')
             print(f'Grade B: {len(_b)} Tray{"s" if len(_b)>1 else " "} - {_b}')
             print(f'Grade D: {len(_d)} Tray{"s" if len(_d)>1 else " "} - {_d}')
             print(f'Grade F: {len(_f)} Tray{"s" if len(_f)>1 else " "} - {_f}')
+            print(f'Grade H: {len(_h)} Tray{"s" if len(_h)>1 else " "} - {_h}')
 
             print()
             print('Partial Trays')
-            print(f'    A: {partial_a}, B: {partial_b}, D: {partial_d}, F: {partial_f}')
+            print(f'    A: {partial_a}, B: {partial_b}, D: {partial_d}, F: {partial_f}, H: {partial_h}')
 
 
 if __name__=="__main__":
