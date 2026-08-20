@@ -67,10 +67,11 @@ def get_next_barcode(loc_db):
 @click.option("--status",is_flag=True, help="Get the status table for a given chip or tray")
 @click.option("--grade",is_flag=True, help="Get the grades table for a given chip or tray")
 @click.option("--xcs",is_flag=True, help="Generate XCS file for tray")
+@click.option("--engrave",is_flag=True, help="Mark a tray as engraved")
 @click.option("--to_sort",is_flag=True, help="Get a summary for all trays to be sorted")
 @click.option("--sorted",is_flag=True, help="Get a summary for all trays that have been sorted")
 @click.option("--locations_db", default="fasic-chiptest.fnal.gov", help="Address of locations database host.")
-def main(tray, chip, get_next_tray, location, history, status, grade, xcs, to_sort, sorted, locations_db):
+def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engrave, to_sort, sorted, locations_db):
 
     loc_db = LocationsDatabase(locations_db)
 
@@ -96,6 +97,39 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, to_so
                 return
         else:
             print('Must specify a tray number to generate the XCS file for')
+
+    if engrave:
+        if tray != 0:
+            #get tray number again, to try to avoid errors
+            try:
+                _trayAgain = int(input('Enter tray number again: '))
+            except:
+                print("Must specify integer value")
+                return
+            if tray==_trayAgain:
+                import os
+                xcs_exists = os.path.exists(f'XCS_files/whole_tray_{tray}.xcs')
+                if not xcs_exists:
+                    print('!!!! An XCS file does not seem to have been generated for this tray !!!!')
+                    _continue = input('Do you really want to continue? Y/N:')
+                else:
+                    _continue = input(f'Do you want to mark tray {tray} as engraved? Y/N:')
+                if _continue.lower()=='y':
+                    print(f'Will mark tray {tray} as engraved')
+                    d = loc_db.getChipsInTray(tray)
+
+                    for c in d.chip_id:
+                        loc_db.setEngravedStatus(c)
+                    return
+                else:
+                    print('Exiting')
+                    return
+            else:
+                print('Tray Numbers Do Not Match!')
+            return
+        else:
+            print('Must specify a tray number')
+            return
 
     if location:
         if chip!=0:

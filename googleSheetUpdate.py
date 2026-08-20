@@ -97,6 +97,11 @@ d_T = d_T[['Pass', 'Fail', 'NoTest', 'Preseries', 'Total', 'Location', 'isSorted
 d_D['Reject'] = d_D.index>=19000
 d_T['Reject'] = d_T.index>=9000
 
+x = df[['current_tray','entry_type']].copy(deep=True)
+x[['entry_type']] = x[['entry_type']]=='ENGRAVED'
+x = x.groupby('current_tray').all()
+d_D['Engraved'] = x['entry_type']
+d_T['Engraved'] = x['entry_type']
 
 import gspread
 gc = gspread.service_account()
@@ -110,18 +115,22 @@ econt_timeseries = sh.get_worksheet(4)
 econd_corners = sh.get_worksheet(5)
 daily_summary = sh.get_worksheet(6)
 
+n_D_engraved = d_D[(d_D.Location=='WH14') & (d_D.Engraved) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
+n_D_sorted_needEngraved = d_D[(d_D.Location=='WH14') & (d_D.isSorted) & (~d_D.Engraved) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
 n_D_sorted = d_D[(d_D.Location=='WH14') & (d_D.isSorted) & ~d_D.Reject].sum().values[:12].astype(int).tolist()
 n_D_unsorted = d_D[(d_D.Location=='WH14') & (~d_D.isSorted) & ~d_D.Reject & (d_D.index<16400)].sum().values[:12].astype(int).tolist()
 n_D_shipped = d_D[(d_D.Location!='WH14') & ~d_D.Reject].sum().values[:12].astype(int).tolist()
 n_D_reject = d_D[(d_D.Reject)].sum().values[:12].astype(int).tolist()
 
+n_T_engraved = d_T[(d_T.Location=='WH14') & (d_T.Engraved) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
+n_T_sorted_needEngraved = d_T[(d_T.Location=='WH14') & (d_T.isSorted) & (~d_T.Engraved) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
 n_T_sorted = d_T[(d_T.Location=='WH14') & (d_T.isSorted) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
 n_T_unsorted = d_T[(d_T.Location=='WH14') & (~d_T.isSorted) & ~d_T.Reject].sum().values[:5].astype(int).tolist()
 n_T_shipped = d_T[(d_T.Location!='WH14') & ~d_T.Reject].sum().values[:5].astype(int).tolist()
 n_T_reject = d_T[(d_T.Reject)].sum().values[:5].astype(int).tolist()
 
-availability.update([n_D_sorted,n_D_unsorted,n_D_shipped, n_D_reject],'B5')
-availability.update([n_T_sorted,n_T_unsorted,n_T_shipped, n_T_reject],'B13')
+availability.update([n_D_engraved,n_D_sorted_needEngraved,n_D_unsorted,n_D_shipped, n_D_reject],'B5')
+availability.update([n_T_engraved,n_T_sorted_needEngraved,n_T_unsorted,n_T_shipped, n_T_reject],'B14')
 availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 
 econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())

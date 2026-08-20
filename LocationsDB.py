@@ -273,6 +273,17 @@ class LocationsDatabase:
         self.conn.execute(stmt)
         self.conn.commit()
 
+    def setEngravedStatus(self, chip_id):
+        query = text(f"SELECT * FROM locations WHERE chip_id = :chip_id ORDER BY time DESC LIMIT 1")
+        chip_data = dict(self.conn.execute(query,
+            {"chip_id": chip_id}
+        ).mappings().first())
+
+        chip_data['entry_type'] = 'ENGRAVED'
+        chip_data['time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        stmt = insert(self.tables['locations']).values(chip_data)
+        self.conn.execute(stmt)
+        self.conn.commit()
 
     def setChipGrade(self, chip_id, fraction, err_rate_0p93, err_rate_0p95, err_rate_0p97, err_rate_0p99, err_rate_1p01, err_rate_1p03, err_rate_1p05, err_rate_1p08, err_rate_1p14, err_rate_1p20, err_rate_1p26, err_rate_1p32, quality, timestamp=None, _bist=1.5, _socket="", _fname=""):
 
