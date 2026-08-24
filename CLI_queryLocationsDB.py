@@ -58,8 +58,19 @@ def get_next_barcode(loc_db):
     print(f"           FnSp   : ECOND-{ECOND_corners['FnSp']:05d}")
     print(f"           sorting: ECOND-{ECOND_sorting:05d}")
 
+def parseTrayNumber(tray):
+    if tray is None:
+        return
+    if tray.startswith('ECON'):
+        tray = tray[6:]
+    try:
+        tray = int(tray)
+    except:
+        raise TypeError('Unable to parse tray as an integer')
+    return tray
+
 @click.command()
-@click.option("--tray",default=0, show_default=True, help="Tray number to query")
+@click.option("--tray", help="Tray number to query")
 @click.option("--chip",default=0, show_default=True, help="Chip number to query")
 @click.option("--get_next_tray",is_flag=True, help="Query the database to determine the next tray number in the sequence")
 @click.option("--location",is_flag=True, help="Check the current location of a given chip or tray")
@@ -70,9 +81,11 @@ def get_next_barcode(loc_db):
 @click.option("--engrave",is_flag=True, help="Mark a tray as engraved")
 @click.option("--to_sort",is_flag=True, help="Get a summary for all trays to be sorted")
 @click.option("--sorted",is_flag=True, help="Get a summary for all trays that have been sorted")
+@click.option("--daily_summary","--daily",is_flag=True, help="Get a summary for testing and sorting from the past 24 hours")
 @click.option("--locations_db", default="fasic-chiptest.fnal.gov", help="Address of locations database host.")
-def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engrave, to_sort, sorted, locations_db):
+def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engrave, to_sort, sorted, daily_summary, locations_db):
 
+    tray = parseTrayNumber(tray)
     loc_db = LocationsDatabase(locations_db)
 
     if get_next_tray:
@@ -102,7 +115,7 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engra
         if tray != 0:
             #get tray number again, to try to avoid errors
             try:
-                _trayAgain = int(input('Enter tray number again: '))
+                _trayAgain = parseTrayNumber(input('Enter tray number again: '))
             except:
                 print("Must specify integer value")
                 return
@@ -195,12 +208,62 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engra
             print('Must specify either a chip or tray number to query')
             return
 
-    if tray!=0:
+    if not tray is None:
         d = loc_db.getChipsInTray(tray)
         d.sort_values('current_position',inplace=True)
         print(d.set_index('chip_id'))
         print(f'Total chips: {len(d)}')
         return
+
+    if daily_summary:
+        from datetime import datetime, timedelta
+        df = loc_db.loadGradesDatabase()
+        df.time = pd.to_datetime(df.time)
+
+        df_24h = df[df.time>(datetime.now()-timedelta(hours=24))]
+
+        df_24h.loc[df_24h.Socket.str.contains('44'),'Socket'] = 'A'
+        df_24h.loc[df_24h.Socket.str.contains('46'),'Socket'] = 'B'
+
+        df_testing = df_24h.groupby(['Socket','quality']).count()[['fraction']].pivot_table(index='Socket',columns='quality',values='fraction').astype(int)
+        for i in range(16):
+            if i not in df_testing.columns:
+                df_testing[i] = 0
+        df_testing = df_testing[range(16)]
+        df_testing['Fail'] = df_testing[0]
+        df_testing['Rejected'] = df_testing[[1,2,3,4,5,6]].sum(axis=1)
+        df_testing['A'] = df_testing[[12,13,14,15]].sum(axis=1)
+        df_testing['B'] = df_testing[[10,11]].sum(axis=1)
+        df_testing['D'] = df_testing[[9]]
+        df_testing['F'] = df_testing[[8]]
+        df_testing['H'] = df_testing[[7]]
+        print('  Testing Summary')
+        print('-'*22)
+        print(df_testing[['A','B','D','F','H','Rejected','Fail']])
+
+
+        remapping = {'0.89V':'A',
+                     '0.91V':'A',
+                     '0.93V':'A',
+                     '0.95V':'A',
+                     '0.97V':'B',
+                     '0.99V':'B',
+                     '1.01V':'D',
+                     '1.03V':'F',
+                     '1.05V':'H',
+                     'Consolidating':'Consolidating'}
+
+        df = loc_db.loadLocationsDatabase().set_index('chip_id')
+        df.time = pd.to_datetime(df.time)
+        df_24h = df[df.time>(datetime.now()-timedelta(hours=24))].copy(deep=True)
+        df_24h.comments = df_24h.comments.map(remapping)
+        df_sorted = df_24h[df_24h.entry_type=='SORTED'].groupby('comments').count()[['entry_type']]
+        print()
+        print('  Sorting Summary')
+        print('-'*22)
+        for v in df_sorted.index:
+            print(f'{v.rjust(15)} : {df_sorted.loc[v].entry_type}')
+
 
     if to_sort or sorted:
         df_grades = loc_db.getCurrentGrades().set_index('chip_id')
