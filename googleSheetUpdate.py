@@ -104,8 +104,21 @@ d_D['Engraved'] = x['entry_type']
 d_T['Engraved'] = x['entry_type']
 
 import gspread
-gc = gspread.service_account()
-sh = gc.open("ECON Status")
+
+sh = None
+try:
+    gc = gspread.service_account()
+    sh = gc.open("ECON Status")
+except:
+    print('Problem loading sheet, retrying')
+    try:
+        gc = gspread.service_account()
+        sh = gc.open("ECON Status")
+    except:
+        print('Problem loading sheet twice')
+        sh = None
+        raise RuntimeError("Unable to load google sheet")
+
 
 availability = sh.get_worksheet(0)
 econd = sh.get_worksheet(1)
