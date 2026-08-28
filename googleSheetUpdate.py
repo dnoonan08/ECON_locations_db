@@ -9,6 +9,14 @@ from LocationsDB import LocationsDatabase
 
 from datetime import datetime, timedelta
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--daily", action="store_true")
+
+args = parser.parse_args()
+daily = args.daily
+
 loc_db = LocationsDatabase(f'localhost')
 df = loc_db.getCurrentLocations()
 
@@ -146,8 +154,9 @@ availability.update([n_D_engraved,n_D_sorted_needEngraved,n_D_unsorted,n_D_shipp
 availability.update([n_T_engraved,n_T_sorted_needEngraved,n_T_unsorted,n_T_shipped, n_T_reject],'B14')
 availability.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 
-econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
-econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
+if daily:
+    econd_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_D_sorted,n_D_unsorted,n_D_shipped]).T.flatten().tolist())
+    econt_timeseries.append_row([datetime.now().strftime("%Y-%m-%d %H:%M")] + np.array([n_T_sorted,n_T_unsorted,n_T_shipped]).T.flatten().tolist())
 
 econd.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
 econd.batch_clear(['A4:Z999'])
@@ -158,49 +167,49 @@ econt.batch_clear(['A4:Z999'])
 econt.update([d_T.reset_index().columns.values.tolist()] + d_T.reset_index().values.tolist(),'A3')
 
 
+if daily:
+    ### calculate totals by corner
+    d_corners = df.set_index('chip_id').loc[1100000:].copy(deep=True)
 
-### calculate totals by corner
-d_corners = df.set_index('chip_id').loc[1100000:].copy(deep=True)
+    processMap = {110:'Prod3',160:'Std',161:'5Pct',162:'10Pct',163:'15Pct',164:'SlowN-SlowP',165:'SlowN-FastP',166:'FastN-SlowP'}
+    d_corners['Process'] = (d_corners.index/10000).astype(int).map(processMap)
 
-processMap = {110:'Prod3',160:'Std',161:'5Pct',162:'10Pct',163:'15Pct',164:'SlowN-SlowP',165:'SlowN-FastP',166:'FastN-SlowP'}
-d_corners['Process'] = (d_corners.index/10000).astype(int).map(processMap)
+    a = d_corners.groupby(['Process','quality'])[['time']].count()
+    b = a.reset_index().pivot(index='Process',columns='quality',values='time').fillna(0)
+    c = b.loc[['Prod3','Std','5Pct','10Pct','15Pct','SlowN-SlowP','SlowN-FastP','FastN-SlowP']][[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,-1]]
+    c.columns = ['0.89','0.91','0.93','0.95','0.97','0.99','1.01','1.03','1.05','1.08','1.14','1.20','1.26','1.32','>1.32','Fail','NoTest']
+    d = c.astype(int)
+    _total = d.sum(axis=1)
+    d['Tested'] = _total - d['NoTest']
+    d['Total'] = _total
+    econd_corners.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
+    econd_corners.update([d.reset_index().columns.values.tolist()] + d.reset_index().values.tolist(),'A4')
 
-a = d_corners.groupby(['Process','quality'])[['time']].count()
-b = a.reset_index().pivot(index='Process',columns='quality',values='time').fillna(0)
-c = b.loc[['Prod3','Std','5Pct','10Pct','15Pct','SlowN-SlowP','SlowN-FastP','FastN-SlowP']][[15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,-1]]
-c.columns = ['0.89','0.91','0.93','0.95','0.97','0.99','1.01','1.03','1.05','1.08','1.14','1.20','1.26','1.32','>1.32','Fail','NoTest']
-d = c.astype(int)
-_total = d.sum(axis=1)
-d['Tested'] = _total - d['NoTest']
-d['Total'] = _total
-econd_corners.update([['Last Updated:',datetime.now().strftime("%Y-%m-%d %H:%M")]],'A1')
-econd_corners.update([d.reset_index().columns.values.tolist()] + d.reset_index().values.tolist(),'A4')
+    _today = datetime.today()
+    _yesterday = _today - timedelta(days=1)
 
-_today = datetime.today()
-_yesterday = _today - timedelta(days=1)
+    if _today.hour<12: #only accumulate in the morning
+        df.time = pd.to_datetime(df.time)
 
-if _today.hour<12: #only accumulate in the morning
-    df.time = pd.to_datetime(df.time)
+        _today_7am = f'{_today.year}-{_today.month:02d}-{_today.day:02d} 7h'
+        _yesterday_7am = f'{_yesterday.year}-{_yesterday.month:02d}-{_yesterday.day:02d} 7h'
 
-    _today_7am = f'{_today.year}-{_today.month:02d}-{_today.day:02d} 7h'
-    _yesterday_7am = f'{_yesterday.year}-{_yesterday.month:02d}-{_yesterday.day:02d} 7h'
+        df_yesterday = df[(df.time>_yesterday_7am) & (df.time<_today_7am)].copy(deep=True)
 
-    df_yesterday = df[(df.time>_yesterday_7am) & (df.time<_today_7am)].copy(deep=True)
+        df_yesterday['ECON_type'] = np.where(df_yesterday.chip_id<1000000, 'ECONT','ECOND')
+        df_yesterday = df_yesterday[df_yesterday.entry_type.isin(['TESTED','SORTED','SHIPPED'])]
 
-    df_yesterday['ECON_type'] = np.where(df_yesterday.chip_id<1000000, 'ECONT','ECOND')
-    df_yesterday = df_yesterday[df_yesterday.entry_type.isin(['TESTED','SORTED','SHIPPED'])]
+        df_yesterday = df_yesterday.groupby(['ECON_type','entry_type']).count()[['chip_id']]
 
-    df_yesterday = df_yesterday.groupby(['ECON_type','entry_type']).count()[['chip_id']]
+        result = pd.DataFrame([['ECOND','TESTED',0],
+                               ['ECOND','SORTED',0],
+                               ['ECOND','SHIPPED',0],
+                               ['ECONT','TESTED',0],
+                               ['ECONT','SORTED',0],
+                               ['ECONT','SHIPPED',0],
+                               ],columns = ['ECON_type','entry_type','chip_id']).set_index(['ECON_type','entry_type'])
 
-    result = pd.DataFrame([['ECOND','TESTED',0],
-                           ['ECOND','SORTED',0],
-                           ['ECOND','SHIPPED',0],
-                           ['ECONT','TESTED',0],
-                           ['ECONT','SORTED',0],
-                           ['ECONT','SHIPPED',0],
-                           ],columns = ['ECON_type','entry_type','chip_id']).set_index(['ECON_type','entry_type'])
+        result.loc[df_yesterday.index] = df_yesterday
+        result.values.flatten()
 
-    result.loc[df_yesterday.index] = df_yesterday
-    result.values.flatten()
-
-    daily_summary.append_row([f'{_yesterday.year}-{_yesterday.month:02d}-{_yesterday.day:02d}'] + result.values.flatten().tolist(),value_input_option='USER_ENTERED')
+        daily_summary.append_row([f'{_yesterday.year}-{_yesterday.month:02d}-{_yesterday.day:02d}'] + result.values.flatten().tolist(),value_input_option='USER_ENTERED')
