@@ -112,7 +112,7 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engra
             print('Must specify a tray number to generate the XCS file for')
 
     if engrave:
-        if tray != 0:
+        if (tray != 0) and (not tray is None):
             #get tray number again, to try to avoid errors
             try:
                 _trayAgain = parseTrayNumber(input('Enter tray number again: '))
@@ -140,8 +140,26 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engra
             else:
                 print('Tray Numbers Do Not Match!')
             return
+        elif chip!=0:
+            try:
+                _chipAgain = int(input('Enter chip number again: '))
+            except:
+                print('Must specify integer value for chip number')
+                return
+            if chip==_chipAgain:
+                d = loc_db.getChip(chip)
+                d.sort_values('time',inplace=True)
+                _tray = d.current_tray.iloc[-1]
+                _pos = d.current_position.iloc[-1]
+                _continue = input(f'Do you want to mark chip {chip}, currently in tray {_tray} position {_pos}, as engraved? Y/N:')
+                if _continue.lower()=='y':
+                    print(f'Marking chip {chip} as engraved')
+                    loc_db.setEngravedStatus(chip)
+                return
+            else:
+                print('Chip Numbers Do Not Match!')
         else:
-            print('Must specify a tray number')
+            print('Must specify a tray or chip number')
             return
 
     if location:
