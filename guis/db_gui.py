@@ -761,7 +761,7 @@ class ChangeLocationSummaryAndConfirmDialog(QDialog):
                 _destination_tray_int = int(_destination_tray_text[6:]) if _destination_tray_text.startswith('ECON') else int(_destination_tray_text)
                 self.locations_db.setChipLocation(
                     chip_id=row['chip_id'],
-                    entry_type=row['entry_type'],
+                    entry_type='SORTED',
                     start_tray=row['current_tray'],
                     start_position=row['current_position'],
                     new_tray=_destination_tray_int,
