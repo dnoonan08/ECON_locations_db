@@ -192,9 +192,24 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engra
             return
 
     if grade:
+        columnList = ['chip_id',
+                      'fraction',
+                      '0.95V',
+                      '0.97V',
+                      '0.99V',
+                      '1.01V',
+                      '1.03V',
+                      '1.05V',
+                      '1.08V',
+                      '1.14V',
+                      '1.2V',
+                      'quality',
+                      'BIST',
+                      'time',
+                      ]
         if chip!=0:
             d_grade = loc_db.loadGradesDatabase().set_index('chip_id')
-            print(d_grade.loc[chip])
+            print(d_grade.loc[chip,columnList[1:]])
             return
         elif tray!=0:
             # d = loc_db.getChipsInTray(tray)
@@ -204,21 +219,6 @@ def main(tray, chip, get_next_tray, location, history, status, grade, xcs, engra
             d.index.name = 'Tray Pos.'
             pd.set_option('display.max_columns', None)
             pd.set_option('display.width', 240)
-            columnList = ['chip_id',
-                          'fraction',
-                          '0.95V',
-                          '0.97V',
-                          '0.99V',
-                          '1.01V',
-                          '1.03V',
-                          '1.05V',
-                          '1.08V',
-                          '1.14V',
-                          '1.2V',
-                          'quality',
-                          'BIST',
-                          'time',
-                          ]
             print(d.sort_index()[columnList])
             print(f'Total chips: {len(d)}')
             return
