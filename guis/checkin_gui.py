@@ -133,6 +133,9 @@ class ECONCheckinWidget(QWidget):
         self.wafer_lot.addItems(["N61H30.00",
                                  "N61H52.00",
                                  "N62S36.00",#Prod4 10Pct Run2
+                                 "N62V40.00",#Prod5 10Pct Run3
+                                 "N62X92.00",#Prod6 10Pct Run4
+                                 "N62B42.00",#Prod7 10Pct Run5
                                  "N61H52.05 TMTV53B",#Multi Pad Metal Fix
                                  "N61H52.0V TMTV53C",#Single Core Metal Fix
                                  "NCTA61 Wafs All",

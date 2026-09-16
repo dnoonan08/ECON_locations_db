@@ -23,7 +23,9 @@ production_lot_map = {'N61H30.00':'A',
                       "N62S36.00":"M",#Prod4 10Pct Run2
                       "N61.H52.05 TMTV53B":"N", #Metal fix 1 - Multi pin
                       "N61.H52.0V TMTV53C":"O", #Metal fix 2 - Single Core
-#                      "N62V40.00":"P", #Prod5 10Pct Run 3
+                      "N62V40.00":"P", #Prod5 10Pct Run 3
+                      "N62X92.00":"Q", #Prod6 10Pct Run 4
+                      "N63B42.00":"R", #Prod7 10Pct Run 5
                       }
 
 ECOND_grade_map = {15:'A', #0.89
